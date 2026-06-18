@@ -2,7 +2,7 @@
    ManageView.jsx — Alta / edición de componentes  [MIGRADA · fiel al HTML]
    ===================================================================== */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { CONTAINERS, TIPOS } from '../lib/constants.js';
 import { nextCode } from '../lib/inventory.js';
@@ -13,11 +13,22 @@ const EMPTY = {
   codigoFabricante: '', codigoInterno: '', descripcion: '', cantidad: 0, espacioOcupado: 'Bajo', notas: '',
 };
 
-export default function ManageView({ go }) {
-  const { comps, customBoxes, add } = useInventory();
+export default function ManageView({ go, editComp, clearEdit }) {
+  const { comps, customBoxes, add, edit } = useInventory();
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const isEditing = !!editComp;
+
+  // Precargar datos al entrar en modo edición
+  useEffect(() => {
+    if (editComp) {
+      setForm({ ...EMPTY, ...editComp });
+    } else {
+      setForm(EMPTY);
+    }
+  }, [editComp]);
 
   const allBoxes = [...CONTAINERS, ...customBoxes];
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -26,7 +37,8 @@ export default function ManageView({ go }) {
   const hasComp = !!ct?.compartments;
   const gridCols = ct?.type === 'gabinete' ? 8 : 6;
   const cajonButtons = hasComp ? Array.from({ length: ct.compartments }, (_, i) => i + 1) : [];
-  const code = nextCode(form.contenedor, comps);
+  // En edición conserva su código; al agregar calcula el siguiente
+  const code = isEditing ? (form.codigoInterno || '') : nextCode(form.contenedor, comps);
 
   function onContChange(e) {
     const c = e.target.value;
@@ -38,20 +50,31 @@ export default function ManageView({ go }) {
     if (!form.codigoFabricante) return setError('El Código Fabricante es obligatorio');
     setBusy(true);
     try {
-      await add({ ...form, codigoInterno: code });
-      setForm(EMPTY);
-      if (go2) go && go('visual');
+      if (isEditing) {
+        await edit(editComp.id, { ...form, codigoInterno: code });
+        clearEdit && clearEdit();
+        go && go('table');
+      } else {
+        await add({ ...form, codigoInterno: code });
+        setForm(EMPTY);
+        if (go2) go && go('visual');
+      }
     } catch (e) {
       setError(e.message);
     }
     setBusy(false);
   }
 
+  function cancel() {
+    clearEdit && clearEdit();
+    go && go('table');
+  }
+
   return (
     <div style={{ maxWidth: 700 }}>
       <div style={{ background: '#fff', borderRadius: 12, border: `1px solid ${T.border}`, padding: 28 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>Agregar componente</h2>
-        <p style={{ fontSize: 13, color: '#94A3B8', marginBottom: 24 }}>El código interno se asigna automáticamente. Solo el Código Fabricante es obligatorio.</p>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>{isEditing ? 'Editar componente' : 'Agregar componente'}</h2>
+        <p style={{ fontSize: 13, color: '#94A3B8', marginBottom: 24 }}>{isEditing ? `Editando ${code}` : 'El código interno se asigna automáticamente. Solo el Código Fabricante es obligatorio.'}</p>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <Field label="Código Fabricante *">
@@ -108,12 +131,23 @@ export default function ManageView({ go }) {
         {error && <div style={{ color: T.danger, fontSize: 13, marginTop: 16, padding: 10, background: '#FEF2F2', borderRadius: 8, border: '1px solid #FEE2E2' }}>{error}</div>}
 
         <div style={{ display: 'flex', gap: 12, marginTop: 24, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-          <button onClick={() => save(false)} disabled={busy} style={{ padding: '10px 20px', border: `1px solid ${T.primary}`, borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: T.primary, fontFamily: T.font }}>
-            Agregar y seguir aquí
-          </button>
-          <button onClick={() => save(true)} disabled={busy} style={{ padding: '10px 24px', background: T.primary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: T.font }}>
-            {busy ? 'Guardando…' : 'Agregar e ir a la caja'}
-          </button>
+          {isEditing ? (
+            <>
+              <button onClick={cancel} disabled={busy} style={{ padding: '10px 20px', border: `1px solid ${T.border}`, borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: '#475569', fontFamily: T.font }}>Cancelar</button>
+              <button onClick={() => save(false)} disabled={busy} style={{ padding: '10px 24px', background: T.primary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: T.font }}>
+                {busy ? 'Guardando…' : 'Guardar cambios'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => save(false)} disabled={busy} style={{ padding: '10px 20px', border: `1px solid ${T.primary}`, borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: T.primary, fontFamily: T.font }}>
+                Agregar y seguir aquí
+              </button>
+              <button onClick={() => save(true)} disabled={busy} style={{ padding: '10px 24px', background: T.primary, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: T.font }}>
+                {busy ? 'Guardando…' : 'Agregar e ir a la caja'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

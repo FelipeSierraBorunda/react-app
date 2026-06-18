@@ -10,7 +10,7 @@ import { T, card } from '../theme.js';
 import NewBoxModal from '../components/NewBoxModal.jsx';
 import DrawerModal from '../components/DrawerModal.jsx';
 
-export default function VisualView({ go }) {
+export default function VisualView({ go, goEdit }) {
   const { comps, customBoxes, addCustomBox, use, remove } = useInventory();
   const { loggedIn } = useAuth();
   const [active, setActive] = useState(CONTAINERS[0].id);
@@ -236,7 +236,7 @@ export default function VisualView({ go }) {
           onClose={() => setDrawer(null)}
           onUse={(id, qty) => use(id, qty)}
           onDelete={(id) => remove(id)}
-          onEdit={() => { setDrawer(null); go && go('manage'); }}
+          onEdit={(mi) => { setDrawer(null); goEdit && goEdit(mi); }}
           onAddHere={!drawer.all ? () => { setDrawer(null); go && go('manage'); } : null}
         />
       )}

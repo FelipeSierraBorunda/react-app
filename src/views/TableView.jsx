@@ -14,7 +14,7 @@ import { CONTAINERS, TIPOS, TC, rgba } from '../lib/constants.js';
 import { T, card } from '../theme.js';
 import ComponentDetailModal from '../components/ComponentDetailModal.jsx';
 
-export default function TableView({ go, requireAuth }) {
+export default function TableView({ go, goEdit, requireAuth }) {
   const { comps, use, remove, edit } = useInventory();
   const { loggedIn } = useAuth();
   const [filters, setFilters] = useState({ tipo: '', cont: '', q: '' });
@@ -114,7 +114,7 @@ export default function TableView({ go, requireAuth }) {
           onClose={() => setDetail(null)}
           onUse={(qty) => use(detail.id, qty)}
           onDelete={() => remove(detail.id)}
-          onEdit={() => { setDetail(null); go && go('manage'); }}
+          onEdit={() => { const c = detail; setDetail(null); goEdit && goEdit(c); }}
         />
       )}
     </div>
