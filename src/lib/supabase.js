@@ -62,6 +62,20 @@ export const db = {
     return await res.json();
   },
 
+  // UPSERT (insert masivo; actualiza filas con id duplicado)
+  async upsert(table, rows) {
+    const res = await fetch(rest(table), {
+      method: 'POST',
+      headers: { ...baseHeaders, Prefer: 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify(rows),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`UPSERT ${table}: HTTP ${res.status} ${JSON.stringify(err)}`);
+    }
+    return await res.json();
+  },
+
   // DELETE FROM <table> WHERE <col> = <val>
   async del(table, col, val) {
     const res = await fetch(rest(`${table}?${col}=eq.${encodeURIComponent(val)}`), {

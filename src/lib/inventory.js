@@ -52,6 +52,31 @@ export async function deleteComponent(id) {
   return db.del('componentes', 'id', id);
 }
 
+// Importación en masa — normaliza y hace upsert por lotes.
+export async function importComponents(items) {
+  const norm = items.map((c) => ({
+    id: c.id || uid(),
+    codigoInterno: c.codigoInterno || '',
+    contenedor: c.contenedor || '',
+    cajon: parseInt(c.cajon, 10) || 1,
+    posicion: parseInt(c.posicion, 10) || 1,
+    tipo: c.tipo || 'Otro',
+    codigoFabricante: c.codigoFabricante || '',
+    descripcion: c.descripcion || '',
+    cantidad: parseInt(c.cantidad, 10) || 0,
+    espacioOcupado: c.espacioOcupado || 'Bajo',
+    notas: c.notas || '',
+  }));
+  // Subir en lotes de 200 para no exceder límites de la API
+  const out = [];
+  for (let i = 0; i < norm.length; i += 200) {
+    const batch = norm.slice(i, i + 200);
+    const res = await db.upsert('componentes', batch);
+    out.push(...(Array.isArray(res) ? res : []));
+  }
+  return out;
+}
+
 // ---------- registro de actividad ----------
 
 // Una transacción de uso/consumo de un componente por un usuario.

@@ -89,6 +89,20 @@ export function InventoryProvider({ children }) {
     return box;
   }, []);
 
-  const value = { comps, usage, changelog, loading, customBoxes, add, edit, remove, use, addCustomBox };
+  // Importación en masa desde JSON
+  const importMany = useCallback(async (items) => {
+    const rows = await Inv.importComponents(items);
+    // Fusiona con el estado actual (reemplaza por id, agrega nuevos)
+    setComps((prev) => {
+      const map = {};
+      prev.forEach((c) => { map[c.id] = c; });
+      rows.forEach((c) => { map[c.id] = c; });
+      return Object.values(map);
+    });
+    await Inv.logChange(session, { type: 'importar', codigo: '—', descripcion: `Importación de ${rows.length} componentes`, tipo: '', cantidad: rows.length });
+    return rows.length;
+  }, [session]);
+
+  const value = { comps, usage, changelog, loading, customBoxes, add, edit, remove, use, addCustomBox, importMany };
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
 }

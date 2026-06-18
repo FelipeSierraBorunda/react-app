@@ -2,11 +2,13 @@
    ExportImport.jsx — Herramientas de backup y restauración
    ===================================================================== */
 
+import { useState } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { T, btn, card } from '../theme.js';
 
 export default function ExportImport() {
-  const { comps } = useInventory();
+  const { comps, importMany } = useInventory();
+  const [busy, setBusy] = useState(false);
 
   function exportJSON() {
     const data = { componentes: comps, exportDate: new Date().toISOString() };
@@ -23,7 +25,7 @@ export default function ExportImport() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const data = JSON.parse(evt.target.result);
         if (!Array.isArray(data.componentes) && !Array.isArray(data)) {
@@ -31,9 +33,14 @@ export default function ExportImport() {
           return;
         }
         const items = Array.isArray(data) ? data : data.componentes;
-        alert(`Se importarían ${items.length} componentes. (La importación en masa aún no está implementada en esta versión.)`);
+        if (!window.confirm(`¿Importar ${items.length} componentes? Los que tengan el mismo ID se actualizarán.`)) return;
+        setBusy(true);
+        const n = await importMany(items);
+        setBusy(false);
+        alert(`✓ ${n} componentes importados correctamente.`);
       } catch (err) {
-        alert('Error al leer el archivo: ' + err.message);
+        setBusy(false);
+        alert('Error al importar: ' + err.message);
       }
     };
     reader.readAsText(file);
@@ -47,9 +54,9 @@ export default function ExportImport() {
         <button onClick={exportJSON} style={btn('primary')}>
           ↓ Descargar JSON ({comps.length} componentes)
         </button>
-        <label style={{ ...btn('ghost'), cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
-          ↑ Importar JSON
-          <input type="file" accept=".json" onChange={importJSON} style={{ display: 'none' }} />
+        <label style={{ ...btn('ghost'), cursor: busy ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', opacity: busy ? 0.6 : 1 }}>
+          {busy ? 'Importando…' : '↑ Importar JSON'}
+          <input type="file" accept=".json" onChange={importJSON} disabled={busy} style={{ display: 'none' }} />
         </label>
       </div>
     </div>
