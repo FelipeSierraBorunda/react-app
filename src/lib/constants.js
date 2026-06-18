@@ -6,13 +6,16 @@
    Supabase, mueve CONTAINERS a una tabla y cárgalos en inventory.js.
    ===================================================================== */
 
+// Prefijo base (en GitHub Pages es '/react-app/', en local '/')
+const B = import.meta.env.BASE_URL;
+
 export const CONTAINERS = [
-  { id: 'G1', name: 'Gabinete 1', type: 'gabinete', compartments: 64, image: '/images/gabinete.png' },
-  { id: 'G2', name: 'Gabinete 2', type: 'gabinete', compartments: 64, image: '/images/gabinete.png' },
-  { id: 'C1', name: 'Caja 1', type: 'caja12', compartments: 12, image: '/images/caja12.png' },
-  { id: 'C2', name: 'Caja 2', type: 'caja12', compartments: 12, image: '/images/caja12.png' },
-  { id: 'C3', name: 'Caja 3', type: 'caja_libre', image: '/images/caja-c3.png' },
-  { id: 'C4', name: 'Caja 4', type: 'caja_libre', image: '/images/caja-c4.png' },
+  { id: 'G1', name: 'Gabinete 1', type: 'gabinete', compartments: 64, image: B + 'images/gabinete.png' },
+  { id: 'G2', name: 'Gabinete 2', type: 'gabinete', compartments: 64, image: B + 'images/gabinete.png' },
+  { id: 'C1', name: 'Caja 1', type: 'caja12', compartments: 12, image: B + 'images/caja12.png' },
+  { id: 'C2', name: 'Caja 2', type: 'caja12', compartments: 12, image: B + 'images/caja12.png' },
+  { id: 'C3', name: 'Caja 3', type: 'caja_libre', image: B + 'images/caja-c3.png' },
+  { id: 'C4', name: 'Caja 4', type: 'caja_libre', image: B + 'images/caja-c4.png' },
 ];
 
 export const TIPOS = [
