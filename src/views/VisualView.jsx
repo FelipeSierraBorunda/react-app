@@ -31,7 +31,7 @@ export default function VisualView({ go, goEdit }) {
     return Array.from({ length: ct.compartments }, (_, i) => {
       const n = i + 1;
       const its = ctComps.filter((c) => parseInt(c.cajon, 10) === n);
-      const col = its.length ? (TC[its[0].tipo] || '#2563EB') : null;
+      const col = its.length ? (TC[its[0].tipo] || '#64748B') : null;
 
       // fillColor según espacio ocupado (no por tipo)
       let fillColor = '#E2E8F0';
@@ -133,7 +133,7 @@ export default function VisualView({ go, goEdit }) {
 
         {/* CAJA 12 — imagen + grilla */}
         {isC12 && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 28, alignItems: 'start' }}>
+          <div className="resp-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 28, alignItems: 'start' }}>
             {ct.image && <img src={ct.image} alt={ct.name} style={{ width: '100%', aspectRatio: '1/1.05', borderRadius: 8, border: `1px solid ${T.border}`, objectFit: 'cover', background: '#F8FAFC' }} />}
             <div>
               <p style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>Haz clic en un compartimento para ver su contenido:</p>
@@ -155,7 +155,7 @@ export default function VisualView({ go, goEdit }) {
 
         {/* CAJA LIBRE — imagen + texto */}
         {isCL && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 32, alignItems: 'start' }}>
+          <div className="resp-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 32, alignItems: 'start' }}>
             {ct.image && <img src={ct.image} alt={ct.name} style={{ width: '100%', aspectRatio: '1/0.92', borderRadius: 8, border: `1px solid ${T.border}`, objectFit: 'cover', background: '#F8FAFC' }} />}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 8 }}>
               <p style={{ fontSize: 14, color: '#64748B', lineHeight: 1.7 }}>
