@@ -5,13 +5,13 @@
 import { useMemo, useState } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { CONTAINERS, TC, rgba } from '../lib/constants.js';
+import { CONTAINERS, rgba } from '../lib/constants.js';
 import { T, card } from '../theme.js';
 import NewBoxModal from '../components/NewBoxModal.jsx';
 import DrawerModal from '../components/DrawerModal.jsx';
 
 export default function VisualView({ go, goEdit }) {
-  const { comps, customBoxes, addCustomBox, use, remove } = useInventory();
+  const { comps, customBoxes, addCustomBox, use, remove, tcMap } = useInventory();
   const { loggedIn } = useAuth();
   const [active, setActive] = useState(CONTAINERS[0].id);
   const [newBoxOpen, setNewBoxOpen] = useState(false);
@@ -31,8 +31,7 @@ export default function VisualView({ go, goEdit }) {
     return Array.from({ length: ct.compartments }, (_, i) => {
       const n = i + 1;
       const its = ctComps.filter((c) => parseInt(c.cajon, 10) === n);
-      const col = its.length ? (TC[its[0].tipo] || '#64748B') : null;
-
+      const col = its.length ? (tcMap[its[0].tipo] || '#64748B') : null;
       // fillColor según espacio ocupado (no por tipo)
       let fillColor = '#E2E8F0';
       if (its.length) {
@@ -54,7 +53,7 @@ export default function VisualView({ go, goEdit }) {
         fillColor,
       };
     });
-  }, [ct, ctComps]);
+  }, [ct, ctComps, tcMap]);
 
   const stats = useMemo(() => {
     const totalDrawers = ct?.compartments || 0;
@@ -66,9 +65,9 @@ export default function VisualView({ go, goEdit }) {
 
   const legendTypes = useMemo(() => {
     const present = {};
-    ctComps.forEach((c) => { present[c.tipo] = TC[c.tipo] || '#64748B'; });
+    ctComps.forEach((c) => { present[c.tipo] = tcMap[c.tipo] || '#64748B'; });
     return Object.entries(present).map(([t, col]) => ({ t, col }));
-  }, [ctComps]);
+  }, [ctComps, tcMap]);
 
   const drawerItems = useMemo(() => {
     if (!drawer) return [];

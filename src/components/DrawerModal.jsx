@@ -6,11 +6,13 @@
    ===================================================================== */
 
 import { useState } from 'react';
-import { TC, rgba } from '../lib/constants.js';
+import { useInventory } from '../context/InventoryContext.jsx';
+import { rgba } from '../lib/constants.js';
 import { T } from '../theme.js';
 import { Overlay } from './AuthModal.jsx';
 
 export default function DrawerModal({ title, items, onClose, onUse, onDelete, onEdit, onAddHere, loggedIn }) {
+  const { tcMap } = useInventory();
   const [useTarget, setUseTarget] = useState(null); // {component} cuando se va a usar
   const [useQty, setUseQty] = useState(1);
 
@@ -63,7 +65,7 @@ export default function DrawerModal({ title, items, onClose, onUse, onDelete, on
                   <tr key={mi.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
                     <td style={{ padding: '10px 16px', fontSize: 12, fontFamily: T.mono, color: T.inkSoft }}>{mi.codigoInterno}</td>
                     <td style={{ padding: '10px 16px' }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: TC[mi.tipo] || '#64748B', background: rgba(TC[mi.tipo] || '#64748B', 0.1), padding: '3px 8px', borderRadius: 9 }}>{mi.tipo}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: tcMap[mi.tipo] || '#64748B', background: rgba(tcMap[mi.tipo] || '#64748B', 0.1), padding: '3px 8px', borderRadius: 9 }}>{mi.tipo}</span>
                     </td>
                     <td style={{ padding: '10px 16px', fontSize: 12, fontFamily: T.mono, color: T.ink }}>{mi.codigoFabricante}</td>
                     <td style={{ padding: '10px 16px', fontSize: 13, color: T.ink, maxWidth: 220 }}>{mi.descripcion}</td>

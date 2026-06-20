@@ -10,12 +10,12 @@
 import { useMemo, useState } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { CONTAINERS, TIPOS, TC, rgba } from '../lib/constants.js';
+import { CONTAINERS, rgba } from '../lib/constants.js';
 import { T, card } from '../theme.js';
 import ComponentDetailModal from '../components/ComponentDetailModal.jsx';
 
 export default function TableView({ go, goEdit, requireAuth }) {
-  const { comps, use, remove, edit } = useInventory();
+  const { comps, use, remove, edit, tipos, tcMap } = useInventory();
   const { loggedIn } = useAuth();
   const [filters, setFilters] = useState({ tipo: '', cont: '', q: '' });
   const [sort, setSort] = useState({ col: 'codigoInterno', dir: 'asc' });
@@ -62,7 +62,7 @@ export default function TableView({ go, goEdit, requireAuth }) {
         <input className="resp-filter-input" placeholder="Buscar…" value={filters.q} onChange={set('q')} style={input} />
         <select className="resp-filter-input" value={filters.tipo} onChange={set('tipo')} style={input}>
           <option value="">Todos los tipos</option>
-          {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
+          {tipos.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <select className="resp-filter-input" value={filters.cont} onChange={set('cont')} style={input}>
           <option value="">Todos los contenedores</option>
@@ -89,7 +89,7 @@ export default function TableView({ go, goEdit, requireAuth }) {
               {rows.map((c) => (
                 <tr key={c.id} style={{ borderBottom: `1px solid #F1F5F9` }}>
                   <Td mono>{c.codigoInterno}</Td>
-                  <Td><Chip color={TC[c.tipo]}>{c.tipo}</Chip></Td>
+                  <Td><Chip color={tcMap[c.tipo]}>{c.tipo}</Chip></Td>
                   <Td>{c.descripcion}</Td>
                   <Td>{c.cantidad}</Td>
                   <Td>{c.contenedor}</Td>

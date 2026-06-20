@@ -4,10 +4,11 @@
 
 import { useState } from 'react';
 import { T, card, btn } from '../theme.js';
-import { TC } from '../lib/constants.js';
+import { useInventory } from '../context/InventoryContext.jsx';
 import { Overlay } from './AuthModal.jsx';
 
 export default function ComponentDetailModal({ component, onClose, onUse, onDelete, onEdit }) {
+  const { tcMap } = useInventory();
   const [useQty, setUseQty] = useState(1);
   const [busy, setBusy] = useState(false);
 
@@ -41,7 +42,7 @@ export default function ComponentDetailModal({ component, onClose, onUse, onDele
       <div style={{ ...card, padding: 28, maxWidth: 480, width: '100%' }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ margin: '0 0 4px', fontSize: 18 }}>{component.descripcion || component.codigoFabricante}</h2>
         <p style={{ margin: '0 0 20px', fontSize: 13, color: T.muted }}>
-          <span style={{ color: TC[component.tipo], fontWeight: 600 }}>{component.tipo}</span> · 
+          <span style={{ color: tcMap[component.tipo], fontWeight: 600 }}>{component.tipo}</span> · 
           {' '}<span style={{ fontFamily: T.mono }}>{component.codigoInterno}</span>
         </p>
 

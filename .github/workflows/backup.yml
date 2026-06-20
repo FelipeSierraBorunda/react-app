@@ -1,0 +1,68 @@
+name: Backup diario del inventario
+
+# Copia de seguridad automática de la tabla "componentes" de Supabase.
+# Corre en los servidores de GitHub: NO necesita que nadie tenga la web abierta.
+#
+# ── Configuración (una sola vez) ───────────────────────────────────────
+# 1. Este archivo debe quedar en la RAÍZ del repositorio, en la ruta:
+#       .github/workflows/backup.yml
+#    (Si tu repo tiene la app dentro de "react-app/", mueve la carpeta
+#     .github al nivel superior del repo, no dentro de react-app.)
+# 2. En GitHub → Settings → Secrets and variables → Actions → New secret,
+#    crea estos dos secretos (los mismos valores de tu archivo .env):
+#       SUPABASE_URL   →  https://hslqnrnolsjdtmrmsyzf.supabase.co
+#       SUPABASE_KEY   →  (tu VITE_SUPABASE_KEY)
+# 3. Listo. Cada día guardará backups/inventario-AAAA-MM-DD.json en el repo
+#    y actualizará backups/inventario-latest.json. Puedes lanzarlo a mano
+#    desde la pestaña "Actions" con el botón "Run workflow".
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 06:00 UTC todos los días (~01:00 hora de México)
+  workflow_dispatch:       # permite ejecutarlo manualmente
+
+permissions:
+  contents: write          # necesario para que el bot haga commit del backup
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar el repo
+        uses: actions/checkout@v4
+
+      - name: Descargar componentes desde Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p backups
+          FECHA=$(date +%Y-%m-%d)
+          echo "Descargando inventario del $FECHA…"
+          curl -fsS "$SUPABASE_URL/rest/v1/componentes?select=*" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            -H "Accept: application/json" \
+            -o "backups/inventario-$FECHA.json"
+          # Validar que sea JSON no vacío antes de guardar
+          if ! head -c1 "backups/inventario-$FECHA.json" | grep -q '\['; then
+            echo "La respuesta no es un array JSON válido. Aborto."
+            cat "backups/inventario-$FECHA.json"
+            exit 1
+          fi
+          cp "backups/inventario-$FECHA.json" backups/inventario-latest.json
+          echo "Componentes guardados: $(grep -o '"id"' backups/inventario-latest.json | wc -l)"
+
+      - name: Hacer commit del backup
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backups/
+          # Solo hace commit si hubo cambios respecto al día anterior
+          if git diff --quiet --cached; then
+            echo "Sin cambios en el inventario; no se hace commit."
+          else
+            git commit -m "Backup inventario $(date +%Y-%m-%d)"
+            git push
+          fi

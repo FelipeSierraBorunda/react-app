@@ -110,3 +110,20 @@ export async function logChange(session, entry) {
 export async function fetchChangelog() {
   return db.select('changelog', { order: 'ts.desc', limit: 500 });
 }
+
+// ---------- tipos de componente personalizados ----------
+// Viven en la tabla "tipos" de Supabase (compartidos entre todos los
+// usuarios). Si la tabla aún no existe, fetchTipos devuelve [] sin romper.
+
+export async function fetchTipos() {
+  return db.select('tipos', { order: 'creado.asc' });
+}
+
+// upsert por clave "nombre": crear uno nuevo o recolorear uno existente.
+export async function createTipo({ nombre, color }) {
+  return db.upsert('tipos', [{ nombre, color }]);
+}
+
+export async function deleteTipo(nombre) {
+  return db.del('tipos', 'nombre', nombre);
+}

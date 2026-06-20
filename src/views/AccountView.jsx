@@ -9,6 +9,7 @@ import { fmtDate, TYPELBL, TYPECLR, rgba } from '../lib/constants.js';
 import { T, card, btn } from '../theme.js';
 import { Overlay } from '../components/AuthModal.jsx';
 import ExportImport from '../components/ExportImport.jsx';
+import TypesManager from '../components/TypesManager.jsx';
 
 export default function AccountView() {
   const { session, isAdmin, logout, enterAdmin, exitAdmin } = useAuth();
@@ -112,7 +113,8 @@ export default function AccountView() {
         </div>
       </div>
 
-      {/* Backup (solo admin) */}
+      {/* Tipos de componente + Backup (solo admin) */}
+      {isAdmin && <TypesManager />}
       {isAdmin && <ExportImport />}
 
       {adminOpen && <AdminModal onClose={() => setAdminOpen(false)} onConfirm={enterAdmin} />}

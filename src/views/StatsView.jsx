@@ -4,11 +4,11 @@
 
 import { useMemo } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
-import { CONTAINERS, TIPOS, TC, rgba, fmtDate } from '../lib/constants.js';
+import { CONTAINERS, rgba, fmtDate } from '../lib/constants.js';
 import { T } from '../theme.js';
 
 export default function StatsView() {
-  const { comps, customBoxes, usage } = useInventory();
+  const { comps, customBoxes, usage, tipos, tcMap } = useInventory();
   const allBoxes = useMemo(() => [...CONTAINERS, ...customBoxes], [customBoxes]);
 
   const totalQty = useMemo(() => comps.reduce((s, c) => s + (parseInt(c.cantidad, 10) || 0), 0), [comps]);
@@ -18,7 +18,7 @@ export default function StatsView() {
   // Por tipo: count (tipos distintos) + qty (unidades)
   const typeBars = useMemo(() => {
     const byTipo = {};
-    TIPOS.forEach((t) => { byTipo[t] = { count: 0, qty: 0 }; });
+    tipos.forEach((t) => { byTipo[t] = { count: 0, qty: 0 }; });
     comps.forEach((c) => {
       const t = c.tipo || 'Otro';
       if (!byTipo[t]) byTipo[t] = { count: 0, qty: 0 };
@@ -28,11 +28,11 @@ export default function StatsView() {
     const bars = Object.entries(byTipo)
       .filter(([, v]) => v.count > 0)
       .sort((a, b) => b[1].count - a[1].count)
-      .map(([t, d]) => ({ t, count: d.count, qty: d.qty, col: TC[t] || '#64748B' }));
+      .map(([t, d]) => ({ t, count: d.count, qty: d.qty, col: tcMap[t] || '#64748B' }));
     const mx = bars.length ? bars[0].count : 1;
     bars.forEach((b) => { b.pct = Math.round((b.count / mx) * 100); });
     return bars;
-  }, [comps]);
+  }, [comps, tipos, tcMap]);
 
   // Por contenedor
   const ctCards = useMemo(() => allBoxes.map((c) => {
@@ -46,11 +46,11 @@ export default function StatsView() {
   const consumedByType = useMemo(() => {
     const m = {};
     consumedAll.forEach((u) => { const t = u.tipo || 'Otro'; m[t] = (m[t] || 0) + (parseInt(u.cantidad, 10) || 0); });
-    const arr = Object.entries(m).sort((a, b) => b[1] - a[1]).map(([t, q]) => ({ t, q, col: TC[t] || '#64748B' }));
+    const arr = Object.entries(m).sort((a, b) => b[1] - a[1]).map(([t, q]) => ({ t, q, col: tcMap[t] || '#64748B' }));
     const mx = arr.length ? arr[0].q : 1;
     arr.forEach((b) => { b.pct = Math.round((b.q / mx) * 100); });
     return arr;
-  }, [consumedAll]);
+  }, [consumedAll, tcMap]);
   const consumedByUser = useMemo(() => {
     const m = {};
     consumedAll.forEach((u) => { const n = u.usuario || u.email || '—'; m[n] = (m[n] || 0) + (parseInt(u.cantidad, 10) || 0); });

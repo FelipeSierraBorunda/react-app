@@ -63,3 +63,18 @@ CREATE POLICY "public_all" ON componentes FOR ALL USING (true) WITH CHECK (true)
 CREATE POLICY "public_all" ON usuarios FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "public_all" ON transacciones FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "public_all" ON changelog FOR ALL USING (true) WITH CHECK (true);
+
+-- ========== TIPOS PERSONALIZADOS ==========
+-- Bloque independiente: puedes ejecutar SOLO esto en una base ya creada
+-- sin perder datos. Guarda los tipos de componente que crea el admin
+-- (nombre + color de recuadro). Los tipos "base" siguen en el código.
+CREATE TABLE IF NOT EXISTS tipos (
+  nombre TEXT PRIMARY KEY,
+  color  TEXT NOT NULL,
+  creado TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE tipos ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "public_all" ON tipos;
+CREATE POLICY "public_all" ON tipos FOR ALL USING (true) WITH CHECK (true);

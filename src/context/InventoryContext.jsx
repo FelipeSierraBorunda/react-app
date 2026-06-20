@@ -7,8 +7,9 @@
    useInventory().
    ===================================================================== */
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import * as Inv from '../lib/inventory.js';
+import { TIPOS, TC } from '../lib/constants.js';
 import { useAuth } from './AuthContext.jsx';
 
 const InventoryContext = createContext(null);
@@ -22,18 +23,21 @@ export function InventoryProvider({ children }) {
   const [usage, setUsage] = useState([]);
   const [changelog, setChangelog] = useState([]);
   const [customBoxes, setCustomBoxes] = useState([]);
+  const [customTypes, setCustomTypes] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [c, u, ch] = await Promise.all([
+      const [c, u, ch, tp] = await Promise.all([
         Inv.fetchComponents(),
         Inv.fetchUsage(),
         Inv.fetchChangelog(),
+        Inv.fetchTipos(),
       ]);
       setComps(Array.isArray(c) ? c : []);
       setUsage(u || []);
       setChangelog(ch || []);
+      setCustomTypes(Array.isArray(tp) ? tp : []);
       
       // Restaurar cajas personalizadas desde localStorage
       try {
@@ -103,6 +107,33 @@ export function InventoryProvider({ children }) {
     return rows.length;
   }, [session]);
 
-  const value = { comps, usage, changelog, loading, customBoxes, add, edit, remove, use, addCustomBox, importMany };
+  // ---------- tipos de componente ----------
+  // Lista final de tipos = catálogo base (constants) + personalizados.
+  const tipos = useMemo(() => {
+    const extra = customTypes.map((t) => t.nombre).filter((n) => !TIPOS.includes(n));
+    return [...TIPOS, ...extra];
+  }, [customTypes]);
+
+  // Mapa color por tipo = colores base sobrescritos/ampliados por los personalizados.
+  const tcMap = useMemo(() => {
+    const m = { ...TC };
+    customTypes.forEach((t) => { if (t && t.nombre) m[t.nombre] = t.color; });
+    return m;
+  }, [customTypes]);
+
+  const addTipo = useCallback(async ({ nombre, color }) => {
+    await Inv.createTipo({ nombre, color });
+    setCustomTypes((prev) => {
+      const without = prev.filter((t) => t.nombre !== nombre);
+      return [...without, { nombre, color }];
+    });
+  }, []);
+
+  const removeTipo = useCallback(async (nombre) => {
+    await Inv.deleteTipo(nombre);
+    setCustomTypes((prev) => prev.filter((t) => t.nombre !== nombre));
+  }, []);
+
+  const value = { comps, usage, changelog, loading, customBoxes, customTypes, tipos, tcMap, add, edit, remove, use, addCustomBox, addTipo, removeTipo, importMany };
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
 }

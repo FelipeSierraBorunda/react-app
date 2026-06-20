@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
-import { CONTAINERS, TIPOS } from '../lib/constants.js';
+import { CONTAINERS } from '../lib/constants.js';
 import { nextCode } from '../lib/inventory.js';
 import { T } from '../theme.js';
 
@@ -14,7 +14,7 @@ const EMPTY = {
 };
 
 export default function ManageView({ go, editComp, clearEdit }) {
-  const { comps, customBoxes, add, edit } = useInventory();
+  const { comps, customBoxes, tipos, add, edit } = useInventory();
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -82,7 +82,7 @@ export default function ManageView({ go, editComp, clearEdit }) {
           </Field>
           <Field label="Tipo">
             <select value={form.tipo} onChange={set('tipo')} style={input}>
-              {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
+              {tipos.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </Field>
           <Field label="Contenedor">
