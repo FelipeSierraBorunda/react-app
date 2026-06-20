@@ -50,7 +50,7 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', background: T.bg }}>
       <Nav view={view} setView={(v) => { if (v === 'manage') setEditComp(null); setView(v); }} requireAuth={requireAuth} onAuth={() => setAuthOpen(true)} />
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px 64px' }}>
+      <main className="resp-main" style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px 64px' }}>
         {views[view] || views.visual}
       </main>
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}

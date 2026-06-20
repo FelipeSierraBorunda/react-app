@@ -76,7 +76,7 @@ export default function ManageView({ go, editComp, clearEdit }) {
         <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>{isEditing ? 'Editar componente' : 'Agregar componente'}</h2>
         <p style={{ fontSize: 13, color: '#94A3B8', marginBottom: 24 }}>{isEditing ? `Editando ${code}` : 'El código interno se asigna automáticamente. Solo el Código Fabricante es obligatorio.'}</p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="resp-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <Field label="Código Fabricante *">
             <input value={form.codigoFabricante} onChange={set('codigoFabricante')} placeholder="RC0402FR-0710KL" style={{ ...input, fontFamily: T.mono }} />
           </Field>

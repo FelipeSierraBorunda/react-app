@@ -70,7 +70,7 @@ export default function StatsView() {
       </div>
 
       {/* 2 columnas: Por tipo / Por contenedor */}
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 20, alignItems: 'start' }}>
+      <div className="resp-2col" style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 20, alignItems: 'start' }}>
         {/* Por tipo */}
         <div style={{ background: '#fff', borderRadius: 12, border: `1px solid ${T.border}`, padding: 24 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 20 }}>Por Tipo de Componente</h3>
@@ -133,7 +133,7 @@ export default function StatsView() {
         {consumedAll.length === 0 ? (
           <div style={{ padding: 48, textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>Todavía no se ha consumido ningún componente en el laboratorio.</div>
         ) : (
-          <div style={{ padding: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
+          <div className="resp-2col" style={{ padding: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
             {/* Por tipo */}
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>Por tipo de componente</div>

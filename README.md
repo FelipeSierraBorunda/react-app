@@ -5,6 +5,25 @@ Migración del prototipo (un solo HTML) a una app React modular y escalable.
 
 ---
 
+## ⚡ ACTUALIZAR LA PÁGINA EN LÍNEA (lo más usado)
+
+Cada vez que cambies algo y quieras publicarlo en GitHub Pages:
+
+```bash
+cd react-app        # entra a la carpeta del proyecto
+npm run deploy      # compila y sube a GitHub Pages
+```
+
+Espera 1-2 minutos y recarga la página con **Ctrl + Shift + R**
+(para limpiar la caché del navegador).
+
+🔗 Tu página: https://felipesierraborunda.github.io/react-app/
+
+> `npm run deploy` hace dos cosas solo: compila tu código (`npm run build`)
+> y sube el resultado a la rama `gh-pages`. No necesitas hacer nada más.
+
+---
+
 ## 1. Requisitos
 
 - Node.js 18 o superior (incluye `npm`).

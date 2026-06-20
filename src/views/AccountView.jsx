@@ -50,7 +50,7 @@ export default function AccountView() {
       </div>
 
       {/* Dos columnas: consumidos / cambios administrativos */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <div className="resp-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
         {/* Consumidos */}
         <div style={{ ...card, overflow: 'hidden' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>

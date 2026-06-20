@@ -59,12 +59,12 @@ export default function TableView({ go, goEdit, requireAuth }) {
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        <input placeholder="Buscar…" value={filters.q} onChange={set('q')} style={input} />
-        <select value={filters.tipo} onChange={set('tipo')} style={input}>
+        <input className="resp-filter-input" placeholder="Buscar…" value={filters.q} onChange={set('q')} style={input} />
+        <select className="resp-filter-input" value={filters.tipo} onChange={set('tipo')} style={input}>
           <option value="">Todos los tipos</option>
           {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-        <select value={filters.cont} onChange={set('cont')} style={input}>
+        <select className="resp-filter-input" value={filters.cont} onChange={set('cont')} style={input}>
           <option value="">Todos los contenedores</option>
           {CONTAINERS.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
