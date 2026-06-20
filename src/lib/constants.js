@@ -19,16 +19,17 @@ export const CONTAINERS = [
 ];
 
 export const TIPOS = [
-  'Resistencia', 'Capacitor', 'IC', 'Transistor', 'Sensor', 'Regulador',
-  'Diodo', 'LED', 'Inductor', 'Conector', 'Actuador', 'Módulo', 'Cristal', 'Relay', 'Otro',
+  'Resistencia', 'Capacitor', 'Circuito Integrado (IC)', 'Transistor/MOSFET', 'Sensor', 'Regulador',
+  'Diodo / LED', 'Inductor / Bobina', 'Conector / Switch', 'Actuador', 'Módulo', 'Cristal', 'Relay', 'Otro',
 ];
 
-// Color por tipo de componente
+// Color por tipo de componente (las claves DEBEN coincidir exactamente con
+// el valor "tipo" guardado en la base de datos)
 export const TC = {
-  Resistencia: '#DC2626', Capacitor: '#2563EB', IC: '#7C3AED', Transistor: '#D97706',
-  Sensor: '#059669', Regulador: '#0891B2', Diodo: '#E11D48', LED: '#F59E0B',
-  Inductor: '#0D9488', Conector: '#C026D3', Actuador: '#65A30D', 'Módulo': '#16A34A', Cristal: '#6366F1',
-  Relay: '#EA580C', Otro: '#64748B',
+  'Resistencia': '#DC2626', 'Capacitor': '#2563EB', 'Circuito Integrado (IC)': '#7C3AED', 'Transistor/MOSFET': '#D97706',
+  'Sensor': '#059669', 'Regulador': '#0891B2', 'Diodo / LED': '#E11D48',
+  'Inductor / Bobina': '#0D9488', 'Conector / Switch': '#C026D3', 'Actuador': '#65A30D', 'Módulo': '#16A34A', 'Cristal': '#6366F1',
+  'Relay': '#EA580C', 'Otro': '#64748B',
 };
 
 // Prefijo de código interno por contenedor
