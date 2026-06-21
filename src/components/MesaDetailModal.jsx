@@ -44,7 +44,7 @@ export default function MesaDetailModal({ mesa, onClose, go }) {
               <h2 style={{ fontSize: 19, fontWeight: 700, margin: '0 0 4px', color: T.ink }}>{mesa.nombre}</h2>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {(mesa.duenos || []).map((d) => (
-                  <span key={d} style={{ fontSize: 11, fontWeight: 600, color: '#7C3AED', background: '#F5F3FF', padding: '2px 8px', borderRadius: 20 }}>👤 {d}</span>
+                  <span key={d} style={{ fontSize: 11, fontWeight: 600, color: '#7C3AED', background: '#F5F3FF', padding: '2px 8px', borderRadius: 20 }}>👤 {lab.nombreDe(d)}</span>
                 ))}
                 {mesa.pc && <span style={{ fontSize: 11, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', padding: '2px 8px', borderRadius: 20 }}>PC</span>}
                 <span style={{ fontSize: 11, fontWeight: 600, color: T.inkSoft, background: '#F1F5F9', padding: '2px 8px', borderRadius: 20 }}>{mesa.sillas} silla{mesa.sillas === 1 ? '' : 's'}</span>
@@ -199,12 +199,9 @@ function ReserveTab({ mesa, owner, loggedIn, onReservar, setMsg }) {
 
 /* ---------- pestaña Editar ---------- */
 function EditTab({ mesa, lab, setMsg, onClose }) {
-  const maxSillas = mesa.id === '2' ? 3 : 2;
   const [f, setF] = useState({
     nombre: mesa.nombre,
-    duenos: (mesa.duenos || []).join(', '),
-    sillas: mesa.sillas || 0,
-    silla_dir: mesa.silla_dir || 'bottom',
+    duenos: [...(mesa.duenos || [])],
     pc: !!mesa.pc,
     link: mesa.link || '',
     objetos: [...(mesa.objetos || []).map((o) => (o.nombre || o))],
@@ -213,14 +210,15 @@ function EditTab({ mesa, lab, setMsg, onClose }) {
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const esMesa = mesa.kind === 'mesa';
+  const cuentas = lab.cuentas || [];
+
+  const toggleDueno = (email) => set('duenos', f.duenos.includes(email) ? f.duenos.filter((d) => d !== email) : [...f.duenos, email].slice(0, 2));
 
   async function save() {
     setBusy(true);
     const patch = {
       nombre: f.nombre.trim() || mesa.nombre,
-      duenos: f.duenos.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 2),
-      sillas: Math.max(0, Math.min(maxSillas, parseInt(f.sillas, 10) || 0)),
-      silla_dir: f.silla_dir,
+      duenos: f.duenos.slice(0, 2),
       pc: f.pc,
       link: f.link.trim(),
       objetos: f.objetos.map((n) => ({ nombre: n })),
@@ -236,22 +234,22 @@ function EditTab({ mesa, lab, setMsg, onClose }) {
 
       {esMesa && (
         <>
-          <Field label="Dueños (1–2, separados por coma)">
-            <input value={f.duenos} onChange={(e) => set('duenos', e.target.value)} placeholder="Ej. Yumil, Ana" style={inp} />
+          <Field label="Dueños (máx 2 · cuentas registradas)">
+            {cuentas.length === 0 ? (
+              <span style={{ fontSize: 12.5, color: T.muted }}>No hay cuentas registradas todavía.</span>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 150, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 8, padding: 8 }}>
+                {cuentas.map((u) => (
+                  <label key={u.email} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: T.ink, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={f.duenos.includes(u.email)} onChange={() => toggleDueno(u.email)} />
+                    <span style={{ fontWeight: 600 }}>{u.nombre}</span>
+                    <span style={{ fontSize: 11, color: T.muted }}>{u.email}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </Field>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <Field label={`Sillas (máx ${maxSillas})`} style={{ flex: 1 }}>
-              <input type="number" min={0} max={maxSillas} value={f.sillas} onChange={(e) => set('sillas', e.target.value)} style={inp} />
-            </Field>
-            <Field label="Lado de sillas" style={{ flex: 1 }}>
-              <select value={f.silla_dir} onChange={(e) => set('silla_dir', e.target.value)} style={inp}>
-                <option value="bottom">Abajo</option>
-                <option value="top">Arriba</option>
-                <option value="left">Izquierda</option>
-                <option value="right">Derecha</option>
-              </select>
-            </Field>
-          </div>
+          <p style={{ fontSize: 11.5, color: T.muted, margin: 0 }}>El tamaño, color y la ubicación de las sillas se editan en <strong>“Editar plano”</strong> (admin).</p>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: T.inkSoft, cursor: 'pointer' }}>
             <input type="checkbox" checked={f.pc} onChange={(e) => set('pc', e.target.checked)} /> Tiene PC
           </label>

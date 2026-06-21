@@ -7,21 +7,30 @@
    useLab().
    ===================================================================== */
 
-import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import * as Lab from '../lib/lab.js';
-import { TOTAL_SILLAS } from '../lib/lab-layout.js';
+import { TOTAL_SILLAS, normalizeMesa } from '../lib/lab-layout.js';
 import { useAuth } from './AuthContext.jsx';
 
 const LabContext = createContext(null);
 export const useLab = () => useContext(LabContext);
 
+const uid = () => 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
 export function LabProvider({ children }) {
-  const { session } = useAuth();
+  const { session, accounts } = useAuth();
   const [mesas, setMesas] = useState([]);
   const [presencia, setPresencia] = useState([]);
   const [reservas, setReservas] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [now, setNow] = useState(new Date());
+
+  // Reloj vivo: refresca "now" cada 30 s para que las duraciones, las
+  // sillas amarillas (próximas) y los estados de reserva avancen solos.
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(t);
+  }, []);
 
   // Carga perezosa: solo la primera vez que alguien la pide (ver ensureLoaded).
   const load = useCallback(async () => {
@@ -30,7 +39,7 @@ export function LabProvider({ children }) {
       Lab.fetchPresencia(),
       Lab.fetchReservas(),
     ]);
-    setMesas(Array.isArray(m) ? m : []);
+    setMesas(Array.isArray(m) ? m.map(normalizeMesa) : []);
     setPresencia(Array.isArray(p) ? p : []);
     setReservas(Array.isArray(r) ? r : []);
     setLoaded(true);
@@ -46,6 +55,16 @@ export function LabProvider({ children }) {
     setNow(new Date());
   }, []);
 
+  // ---------- cuentas registradas (para asignar dueños / identificar) ----------
+  const cuentas = useMemo(
+    () => Object.values(accounts || {}).map((u) => ({ email: u.email, nombre: u.nombre })),
+    [accounts]
+  );
+  const nombreDe = useCallback(
+    (email) => (accounts && accounts[email] ? accounts[email].nombre : email),
+    [accounts]
+  );
+
   // ---------- derivados ----------
   const presentes = useMemo(() => presencia.filter((p) => !p.salida), [presencia]);
 
@@ -58,6 +77,13 @@ export function LabProvider({ children }) {
   const reservasActivasPorMesa = useMemo(() => {
     const m = {};
     reservas.forEach((r) => { if (Lab.isActiveNow(r, now)) { (m[r.mesa] = m[r.mesa] || []).push(r); } });
+    return m;
+  }, [reservas, now]);
+
+  // Reservas que empiezan dentro de 30 min (silla amarilla intermitente).
+  const reservasProximasPorMesa = useMemo(() => {
+    const m = {};
+    reservas.forEach((r) => { if (Lab.isUpcoming(r, now, 30)) { (m[r.mesa] = m[r.mesa] || []).push(r); } });
     return m;
   }, [reservas, now]);
 
@@ -77,7 +103,7 @@ export function LabProvider({ children }) {
   const esDueno = useCallback((mesa) => {
     if (!session || !mesa) return false;
     const d = mesa.duenos || [];
-    return d.includes(session.nombre) || d.includes(session.email);
+    return d.includes(session.email) || d.includes(session.nombre);
   }, [session]);
 
   // ---------- acciones de presencia ----------
@@ -96,11 +122,18 @@ export function LabProvider({ children }) {
     return { ok: true };
   }, [miPresencia]);
 
+  // Admin: registrar la salida de otra persona que olvidó hacer check-out.
+  const forzarSalida = useCallback(async (presenceId) => {
+    const row = await Lab.checkOut(presenceId);
+    const salida = row?.salida || new Date().toISOString();
+    setPresencia((prev) => prev.map((p) => (p.id === presenceId ? { ...p, salida } : p)));
+    return { ok: true };
+  }, []);
+
   // ---------- reservas (con regla dueño/externo) ----------
   const reservar = useCallback(async ({ mesa, inicio, fin }) => {
     if (!session) return { ok: false, error: 'Inicia sesión' };
     const owner = esDueno(mesa);
-    // Reservas activas que se solapan en esta mesa.
     const conflictos = reservas.filter(
       (r) => r.mesa === mesa.id && r.estado === 'activa' && Lab.overlaps(inicio, fin, r.inicio, r.fin)
     );
@@ -108,7 +141,6 @@ export function LabProvider({ children }) {
       const hayDueno = conflictos.some((r) => r.es_dueno);
       if (!owner) return { ok: false, error: 'Ese horario ya está reservado.' };
       if (hayDueno) return { ok: false, error: 'El dueño ya tiene ese horario reservado.' };
-      // Dueño desplaza a los externos.
       const desplazadas = [];
       for (const c of conflictos) {
         await Lab.setReservaEstado(c.id, 'desplazada');
@@ -126,31 +158,59 @@ export function LabProvider({ children }) {
     setReservas((prev) => prev.filter((r) => r.id !== id));
   }, []);
 
-  // ---------- edición de mesas (admin / sesión) ----------
-  const guardarMesa = useCallback(async (id, patch) => {
-    const row = await Lab.updateMesa(id, patch);
+  // ---------- edición de mesas (admin) ----------
+  // Solo estado local (para el arrastre fluido en el modo edición).
+  const setMesaLocal = useCallback((id, patch) => {
     setMesas((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
-    return row;
+  }, []);
+
+  // Persiste (optimista): actualiza el estado primero y luego intenta
+  // escribir en Supabase. Si las columnas nuevas aún no existen (falta el
+  // ALTER), el cambio se ve en pantalla aunque no se guarde.
+  const guardarMesa = useCallback(async (id, patch) => {
+    const p = { ...patch };
+    if (Array.isArray(p.seats)) p.sillas = p.seats.filter((s) => s.on).length;
+    setMesas((prev) => prev.map((m) => (m.id === id ? { ...m, ...p } : m)));
+    try {
+      await Lab.updateMesa(id, p);
+    } catch (e) {
+      console.error('[lab] guardarMesa:', e);
+    }
+    return p;
   }, []);
 
   const agregarMesa = useCallback(async (data) => {
-    const row = await Lab.createMesa(data);
-    setMesas((prev) => [...prev, row]);
-    return row;
+    const base = normalizeMesa({
+      id: uid(), nombre: 'Mesa nueva', kind: 'mesa', x: 380, y: 230, w: 100, h: 48,
+      forma: 'rect', sillas: 0, silla_dir: 'bottom', duenos: [], objetos: [], pc: false,
+      orden: 60, color: '#ffffff', ...data,
+    });
+    setMesas((prev) => [...prev, base]);
+    try {
+      await Lab.createMesa(base);
+    } catch (e) {
+      console.error('[lab] agregarMesa:', e);
+    }
+    return base;
   }, []);
 
   const eliminarMesa = useCallback(async (id) => {
-    await Lab.deleteMesa(id);
     setMesas((prev) => prev.filter((m) => m.id !== id));
+    try {
+      await Lab.deleteMesa(id);
+    } catch (e) {
+      console.error('[lab] eliminarMesa:', e);
+    }
   }, []);
 
   const value = {
     mesas, presencia, reservas, loaded, now,
-    presentes, presentesPorMesa, reservasActivasPorMesa, miPresencia,
+    cuentas, nombreDe,
+    presentes, presentesPorMesa, reservasActivasPorMesa, reservasProximasPorMesa, miPresencia,
     totalSillas, ocupadas, lleno, esDueno,
     ensureLoaded, refresh,
-    entrar, salir, reservar, cancelarReserva,
-    guardarMesa, agregarMesa, eliminarMesa,
+    entrar, salir, forzarSalida, reservar, cancelarReserva,
+    guardarMesa, agregarMesa, eliminarMesa, setMesaLocal,
   };
   return <LabContext.Provider value={value}>{children}</LabContext.Provider>;
 }

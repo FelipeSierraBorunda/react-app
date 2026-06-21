@@ -27,6 +27,14 @@ CREATE TABLE IF NOT EXISTS mesas (
   orden     INT NOT NULL DEFAULT 0
 );
 
+-- ----- Columnas del modo edición admin (añadir si la tabla ya existe) -----
+-- max_sillas : tope de sillas por mesa (regla del lab, editable).
+-- seats      : posiciones reubicables [{dx,dy,on}] (offset px respecto a la mesa).
+-- color      : color de relleno de la mesa.
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS max_sillas INT NOT NULL DEFAULT 2;
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS seats JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#ffffff';
+
 -- ========== PRESENCIA (check-in / check-out) ==========
 -- Una fila por visita. salida = NULL significa que la persona sigue dentro.
 CREATE TABLE IF NOT EXISTS presencia (

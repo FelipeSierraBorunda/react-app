@@ -1,18 +1,33 @@
 /* =====================================================================
-   lab-layout.js — Distribución por defecto del croquis (semilla)
+   lab-layout.js — Distribución por defecto del croquis (semilla) + helpers
    ---------------------------------------------------------------------
    Coordenadas del plano aprobado (v4). El lienzo lógico mide 880×500.
    La primera vez que se abre el croquis y la tabla "mesas" está vacía,
    estas filas se suben a Supabase. Después, la fuente de verdad es la BD
    (el admin puede mover/editar mesas y se guarda allá).
+
+   NUEVO (modo edición admin):
+   - max_sillas : tope de sillas por mesa (regla del lab, editable).
+   - seats      : posiciones reubicables de cada silla [{dx,dy,on}],
+                  dx/dy = offset en px respecto a la esquina sup-izq de la mesa.
+   - color      : color de relleno de la mesa.
    ===================================================================== */
 
 // Lienzo lógico de referencia (el croquis escala a este tamaño).
 export const STAGE_W = 880;
 export const STAGE_H = 500;
 
+// Tamaño visual de una silla (diámetro en px).
+export const SEAT = 22;
+
+// Paleta de colores permitidos para las mesas (modo edición).
+export const MESA_COLORS = [
+  '#ffffff', '#E2E8F0', '#DBEAFE', '#CCFBF1',
+  '#FEF3C7', '#EDE9FE', '#FFE4E6', '#DCFCE7',
+];
+
 // kind: mesa | inventario | granja | brazo | almacen
-// forma: rect | L     · silla_dir: bottom | top | left | right
+// forma: rect | L     · silla_dir (legacy): bottom | top | left | right
 export const DEFAULT_MESAS = [
   // ----- fila superior -----
   { id: '1',  nombre: 'Mesa 1', kind: 'mesa', x: 14,  y: 14,  w: 150, h: 96, forma: 'L', sillas: 1, silla_dir: 'bottom', duenos: ['Yumil'], pc: false, orden: 1 },
@@ -42,5 +57,79 @@ export const DEFAULT_MESAS = [
   { id: 'almacen', nombre: 'Almacén', kind: 'almacen', x: 716, y: 430, w: 150, h: 58, forma: 'rect', sillas: 0, silla_dir: 'top', duenos: [], orden: 51 },
 ];
 
-// Capacidad total (suma de sillas) — usada para el aviso de "lab lleno".
+// ---------------------------------------------------------------------
+// Tope de sillas por defecto (regla del laboratorio). El admin lo puede
+// sobrescribir por mesa desde el modo edición.
+//   Mesa 1, 3, 4, 5, 8, 9, 10, A → 1
+//   Mesa 2                       → 3
+//   Mesa B                       → 0
+//   resto (6, 7, 11, 12, 13…)    → 2
+// ---------------------------------------------------------------------
+export function topeDefault(id, kind = 'mesa') {
+  if (kind !== 'mesa') return 0;
+  if (id === '2') return 3;
+  if (id === 'B') return 0;
+  if (['1', '3', '4', '5', '8', '9', '10', 'A'].includes(id)) return 1;
+  return 2;
+}
+
+// Posiciones "legacy" (alrededor de la mesa según silla_dir) para `count`
+// sillas. Devuelve offsets {dx,dy} respecto a la esquina sup-izq de la mesa.
+// Se usa para sembrar `seats` cuando una mesa aún no tiene posiciones.
+export function legacySeats(m, count) {
+  const gap = 8;
+  const dir = m.silla_dir || 'bottom';
+  const pos = [];
+  const n = Math.max(count, 1);
+  if (dir === 'bottom' || dir === 'top') {
+    const total = n * SEAT + (n - 1) * gap;
+    const sx = m.w / 2 - total / 2;
+    const sy = dir === 'bottom' ? m.h + gap : -SEAT - gap;
+    for (let i = 0; i < count; i++) pos.push({ dx: Math.round(sx + i * (SEAT + gap)), dy: Math.round(sy) });
+  } else {
+    const total = n * SEAT + (n - 1) * gap;
+    const sy = m.h / 2 - total / 2;
+    const sx = dir === 'right' ? m.w + gap : -SEAT - gap;
+    for (let i = 0; i < count; i++) pos.push({ dx: Math.round(sx), dy: Math.round(sy + i * (SEAT + gap)) });
+  }
+  return pos;
+}
+
+// Normaliza una mesa cargada de la BD (o de la semilla) garantizando que
+// tenga max_sillas, seats[] y color. NO escribe nada: la migración vive en
+// memoria hasta que el admin guarda (entonces sí se persisten las columnas).
+export function normalizeMesa(m) {
+  const max = (m.max_sillas != null) ? m.max_sillas : topeDefault(m.id, m.kind);
+
+  let seats = Array.isArray(m.seats) ? m.seats.filter(Boolean) : null;
+  if (!seats || seats.length === 0) {
+    const onCount = Math.min(m.sillas ?? 0, max);
+    const base = legacySeats(m, Math.max(max, onCount, 0));
+    seats = base.map((p, i) => ({ dx: p.dx, dy: p.dy, on: i < onCount }));
+  }
+  // Limita a max ranuras; si hay menos que max, completa con ranuras apagadas.
+  if (seats.length > max) seats = seats.slice(0, max);
+  if (seats.length < max) {
+    const extra = legacySeats(m, max).slice(seats.length);
+    seats = [...seats, ...extra.map((p) => ({ dx: p.dx, dy: p.dy, on: false }))];
+  }
+
+  const sillas = seats.filter((s) => s.on).length;
+  const color = m.color || (m.kind === 'mesa' ? '#ffffff' : null);
+  return { ...m, max_sillas: max, seats, color, sillas };
+}
+
+// Reconstruye el array de seats cuando cambia el tope (max_sillas).
+export function resizeSeats(m, nuevoMax) {
+  let seats = Array.isArray(m.seats) ? [...m.seats] : [];
+  if (seats.length > nuevoMax) {
+    seats = seats.slice(0, nuevoMax);
+  } else if (seats.length < nuevoMax) {
+    const extra = legacySeats(m, nuevoMax).slice(seats.length);
+    seats = [...seats, ...extra.map((p) => ({ dx: p.dx, dy: p.dy, on: false }))];
+  }
+  return seats;
+}
+
+// Capacidad total (suma de sillas activas) — usada para el aviso de "lab lleno".
 export const TOTAL_SILLAS = DEFAULT_MESAS.reduce((s, m) => s + (m.sillas || 0), 0);

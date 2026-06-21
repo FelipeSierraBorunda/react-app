@@ -103,6 +103,11 @@ CREATE TABLE IF NOT EXISTS mesas (
   orden     INTEGER DEFAULT 60
 );
 
+-- Columnas del modo edición admin (seguro re-ejecutar).
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS max_sillas INT NOT NULL DEFAULT 2;
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS seats JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#ffffff';
+
 -- Presencia: un registro por check-in. salida=NULL ⇒ la persona sigue dentro.
 CREATE TABLE IF NOT EXISTS presencia (
   id      TEXT PRIMARY KEY,

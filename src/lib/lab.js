@@ -47,6 +47,8 @@ export async function createMesa(data) {
     forma: data.forma || 'rect', sillas: data.sillas ?? 0, silla_dir: data.silla_dir || 'bottom',
     duenos: data.duenos || [], objetos: data.objetos || [], link: data.link || '',
     pc: !!data.pc, orden: data.orden ?? 60,
+    // nuevas columnas (requieren el ALTER de lab-schema.sql)
+    max_sillas: data.max_sillas ?? 2, seats: data.seats || [], color: data.color || '#ffffff',
   };
   return db.insert('mesas', row);
 }
@@ -108,4 +110,13 @@ export function overlaps(aIni, aFin, bIni, bFin) {
 // ¿La reserva está activa AHORA?
 export function isActiveNow(r, now = new Date()) {
   return r.estado === 'activa' && new Date(r.inicio) <= now && now < new Date(r.fin);
+}
+
+// ¿La reserva empieza pronto (dentro de `mins` minutos) pero aún no inicia?
+// Sirve para avisar "esta silla se usará en breve" (silla amarilla intermitente).
+export function isUpcoming(r, now = new Date(), mins = 30) {
+  if (r.estado !== 'activa') return false;
+  const ini = new Date(r.inicio).getTime();
+  const t = now.getTime();
+  return ini > t && (ini - t) <= mins * 60000;
 }
