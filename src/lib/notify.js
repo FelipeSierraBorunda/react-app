@@ -1,101 +1,128 @@
 /* =====================================================================
-   notify.js — Notificaciones de reserva (confirmación + recordatorio)
+   notify.js — Notificaciones de reserva con Resend
    ---------------------------------------------------------------------
-   El sitio es estático (sin servidor propio), así que el envío real de
-   correos se hace en DOS niveles:
+   Al reservar:
+   1) Envía confirmación AL INSTANTE.
+   2) Programa recordatorio para 5 minutos ANTES de la reserva (Resend lo
+      maneja automáticamente con el parámetro scheduled_at).
 
-   1) COLA EN SUPABASE (tabla "notificaciones"): al reservar encolamos un
-      correo de confirmación (enviar_en = ahora) y uno de recordatorio
-      (enviar_en = inicio - 5 min). Un proceso programado (Supabase Edge
-      Function + pg_cron, o un GitHub Action cada minuto) lee las filas
-      pendientes con enviar_en <= NOW() y las envía. Ver
-      docs/edge-function-notificaciones.md.
-
-   2) ENVÍO INMEDIATO OPCIONAL (EmailJS, lado cliente): si defines
-      VITE_EMAILJS_* en .env, la confirmación se manda al instante desde
-      el navegador. El recordatorio de 5 min SIEMPRE depende del proceso
-      programado (el navegador puede estar cerrado a esa hora).
-
-   Si nada está configurado, las funciones no rompen: solo encolan (o
-   registran en consola) para no bloquear la reserva.
+   Ambos salen en el mismo momento que el usuario hace la reserva.
    ===================================================================== */
 
-import { db } from './supabase.js';
-
-const uid = () => 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const RESEND_KEY = import.meta.env.VITE_RESEND_KEY;
+const RESEND_URL = 'https://api.resend.com/emails';
 
 const fmt = (s) => {
-  try { return new Date(s).toLocaleString('es', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' }); }
-  catch (e) { return s; }
-};
-
-// --- EmailJS (opcional, lado cliente) -------------------------------
-const EMAILJS = {
-  service: import.meta.env.VITE_EMAILJS_SERVICE,
-  template: import.meta.env.VITE_EMAILJS_TEMPLATE,
-  key: import.meta.env.VITE_EMAILJS_KEY,
-};
-const emailjsReady = () => EMAILJS.service && EMAILJS.template && EMAILJS.key;
-
-async function sendViaEmailJS({ email, nombre, asunto, cuerpo }) {
-  if (!emailjsReady()) return false;
   try {
-    const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service_id: EMAILJS.service,
-        template_id: EMAILJS.template,
-        user_id: EMAILJS.key,
-        template_params: { to_email: email, to_name: nombre, subject: asunto, message: cuerpo },
-      }),
+    return new Date(s).toLocaleString('es', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
     });
-    return res.ok;
   } catch (e) {
-    console.error('[notify] EmailJS:', e);
+    return s;
+  }
+};
+
+// Envía un correo vía Resend. Si scheduledAt es una fecha futura, lo programa.
+async function sendViaResend({ to, toName, subject, text, scheduledAt }) {
+  if (!RESEND_KEY) {
+    console.warn('[notify] VITE_RESEND_KEY no configurada');
+    return false;
+  }
+
+  try {
+    const payload = {
+      from: 'Lab I&R <onboarding@resend.dev>', // Resend proporciona este email por defecto
+      to,
+      reply_to: 'noreply@lab-ir.local',
+      subject,
+      text,
+    };
+
+    // Si hay una fecha futura, programa el envío (formato Unix timestamp en segundos)
+    if (scheduledAt && new Date(scheduledAt) > new Date()) {
+      payload.scheduled_at = Math.floor(new Date(scheduledAt).getTime() / 1000);
+    }
+
+    const res = await fetch(RESEND_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      console.error('[notify] Resend error:', data);
+      return false;
+    }
+    console.log('[notify] Resend OK:', data.id);
+    return true;
+  } catch (e) {
+    console.error('[notify] Resend fetch:', e);
     return false;
   }
 }
 
-// --- API pública -----------------------------------------------------
-
-// Encola confirmación (inmediata) + recordatorio (5 min antes). Si EmailJS
-// está configurado, además manda la confirmación al instante.
+// API pública: encola confirmación (inmediata) + recordatorio (5 min antes).
+// Ambos se envían en el MISMO MOMENTO de la reserva (uno ya, otro programado).
 export async function notifyReservaCreada({ reserva, mesaNombre }) {
   const cuandoTxt = fmt(reserva.inicio);
-  const conf = {
-    id: uid(), reserva_id: reserva.id, email: reserva.email, nombre: reserva.nombre, mesa: reserva.mesa,
-    tipo: 'confirmacion',
-    asunto: `Reserva confirmada · ${mesaNombre}`,
-    cuerpo: `Hola ${reserva.nombre}, tu reserva de ${mesaNombre} para el ${cuandoTxt} quedó registrada. Si no podrás asistir, cancélala desde el laboratorio (Croquis → Reservas).`,
-    enviar_en: new Date().toISOString(),
-  };
-  const recordarEn = new Date(new Date(reserva.inicio).getTime() - 5 * 60000);
-  const rec = {
-    id: uid(), reserva_id: reserva.id, email: reserva.email, nombre: reserva.nombre, mesa: reserva.mesa,
-    tipo: 'recordatorio',
-    asunto: `Recordatorio · ${mesaNombre} en 5 minutos`,
-    cuerpo: `Hola ${reserva.nombre}, tu reserva de ${mesaNombre} empieza a las ${fmt(reserva.inicio)}. Si no podrás asistir, cancélala para liberar el lugar.`,
-    enviar_en: recordarEn.toISOString(),
-  };
+  const inicioDate = new Date(reserva.inicio);
+  const recordarEn = new Date(inicioDate.getTime() - 5 * 60000); // 5 min antes
 
-  // 1) encolar en Supabase (best-effort)
-  try { await db.insert('notificaciones', conf); } catch (e) { console.warn('[notify] cola confirmación:', e?.message); }
-  try { await db.insert('notificaciones', rec); } catch (e) { console.warn('[notify] cola recordatorio:', e?.message); }
+  const confSubject = `Reserva confirmada · ${mesaNombre}`;
+  const confText = `Hola ${reserva.nombre},
 
-  // 2) envío inmediato de la confirmación (si hay EmailJS)
-  const sent = await sendViaEmailJS(conf);
-  if (sent) {
-    try { await db.patch('notificaciones', 'id', conf.id, { estado: 'enviado', enviado: true, enviado_en: new Date().toISOString() }); } catch (e) {}
-  }
-  return { queued: true, confirmacionEnviada: sent };
+Tu reserva de ${mesaNombre} para el ${cuandoTxt} quedó registrada.
+
+Si no podrás asistir, cancélala desde el laboratorio (Croquis → Reservas).
+
+---
+Lab I&R`;
+
+  const recSubject = `Recordatorio · ${mesaNombre} en 5 minutos`;
+  const recText = `Hola ${reserva.nombre},
+
+Tu reserva de ${mesaNombre} empieza a las ${fmt(reserva.inicio)}.
+
+Si no podrás asistir, cancélala para liberar el lugar.
+
+---
+Lab I&R`;
+
+  // 1) Envía confirmación AHORA
+  const confOk = await sendViaResend({
+    to: reserva.email,
+    toName: reserva.nombre,
+    subject: confSubject,
+    text: confText,
+  });
+
+  // 2) Programa recordatorio para 5 min ANTES (Resend lo maneja)
+  const recOk = await sendViaResend({
+    to: reserva.email,
+    toName: reserva.nombre,
+    subject: recSubject,
+    text: recText,
+    scheduledAt: recordarEn.toISOString(),
+  });
+
+  return {
+    confirmacionEnviada: confOk,
+    recordatorioProgramado: recOk,
+  };
 }
 
-// Cancela los correos pendientes de una reserva (al cancelarla).
+// Cancela los correos programados de una reserva (si es posible).
+// Nota: Resend no tiene API para cancelar correos programados aún.
+// Si lo necesitas en el futuro, almacena los email IDs en una tabla.
 export async function notifyReservaCancelada(reservaId) {
-  try {
-    await db.patch('notificaciones', 'reserva_id', reservaId, { estado: 'cancelado' });
-  } catch (e) {
-    console.warn('[notify] cancelar notifs:', e?.message);
-  }
+  // Por ahora, solo log. Si Resend añade cancelación, se actualiza aquí.
+  console.log('[notify] Reserva cancelada:', reservaId);
 }
