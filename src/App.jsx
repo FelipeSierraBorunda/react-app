@@ -18,11 +18,13 @@ import StatsView from './views/StatsView.jsx';
 import ManageView from './views/ManageView.jsx';
 import AccountView from './views/AccountView.jsx';
 import AdminPanel from './views/AdminPanel.jsx';
+import MenuView from './views/MenuView.jsx';
+import CroquisView from './views/CroquisView.jsx';
 
 export default function App() {
   const { ready, loggedIn } = useAuth();
   const { loading } = useInventory();
-  const [view, setView] = useState('visual');
+  const [view, setView] = useState('menu');
   const [authOpen, setAuthOpen] = useState(false);
   const [editComp, setEditComp] = useState(null); // componente en edición
 
@@ -39,6 +41,15 @@ export default function App() {
   }
 
   const views = {
+    menu: <MenuView go={setView} />,
+    croquis: <CroquisView go={setView} />,
+    granja: (
+      <div style={{ maxWidth: 520, margin: '40px auto 0', textAlign: 'center', background: '#fff', border: `1px solid ${T.border}`, borderRadius: 16, padding: 36 }}>
+        <div style={{ fontSize: 17, fontWeight: 700, color: T.ink, marginBottom: 8 }}>Granja FPGA</div>
+        <p style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.5, margin: '0 0 18px' }}>El acceso a la granja de FPGAs se configurará próximamente. Cuando tengas el enlace, lo conectamos aquí.</p>
+        <button onClick={() => setView('menu')} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid ${T.border}`, background: '#fff', color: T.inkSoft, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>← Volver al menú</button>
+      </div>
+    ),
     visual: <VisualView go={setView} goEdit={goEdit} requireAuth={requireAuth} />,
     table: <TableView go={setView} goEdit={goEdit} requireAuth={requireAuth} />,
     stats: <StatsView />,

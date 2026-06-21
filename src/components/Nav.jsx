@@ -13,12 +13,19 @@ export default function Nav({ view, setView, onAuth }) {
   const { loggedIn, isAdmin, session, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const tabs = [
-    { id: 'visual', label: 'Vista Física' },
-    { id: 'table', label: 'Inventario' },
-    { id: 'stats', label: 'Estadísticas' },
-    { id: 'manage', label: '+ Agregar componente' },
-  ];
+  // Las pestañas de inventario solo se muestran dentro del módulo de inventario.
+  const inventoryViews = ['visual', 'table', 'stats', 'manage'];
+  const inInventory = inventoryViews.includes(view);
+
+  const tabs = [];
+  if (inInventory) {
+    tabs.push(
+      { id: 'visual', label: 'Vista Física' },
+      { id: 'table', label: 'Inventario' },
+      { id: 'stats', label: 'Estadísticas' },
+      { id: 'manage', label: '+ Agregar componente' },
+    );
+  }
   if (loggedIn) tabs.push({ id: 'account', label: 'Mi cuenta' });
   if (loggedIn && isAdmin) tabs.push({ id: 'admin', label: 'Panel administrador' });
 
@@ -27,7 +34,14 @@ export default function Nav({ view, setView, onAuth }) {
   return (
     <header style={{ background: '#0F172A', color: '#fff' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>Inventario Lab</div>
+        <button
+          onClick={() => setView('menu')}
+          title="Ir al menú principal"
+          style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          {view !== 'menu' && <span style={{ color: '#94A3B8', fontSize: 17, lineHeight: 1 }}>&#8592;</span>}
+          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em', whiteSpace: 'nowrap', color: '#fff' }}>Lab I&amp;R 4.0</span>
+        </button>
         <nav className="resp-desktop-nav" style={{ display: 'flex', gap: 4, flex: 1 }}>
           {tabs.map((t) => (
             <button
@@ -87,6 +101,17 @@ export default function Nav({ view, setView, onAuth }) {
               <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Menú</span>
               <button onClick={() => setMenuOpen(false)} aria-label="Cerrar" style={{ width: 30, height: 30, border: '1px solid rgba(255,255,255,0.16)', borderRadius: 7, background: 'transparent', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
+            <button
+              onClick={() => pick('menu')}
+              style={{
+                padding: '12px 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                fontSize: 15, fontWeight: 600, fontFamily: T.font, textAlign: 'left',
+                background: view === 'menu' ? 'rgba(255,255,255,0.14)' : 'transparent',
+                color: view === 'menu' ? '#fff' : 'rgba(255,255,255,0.7)',
+              }}
+            >
+              ← Menú principal
+            </button>
             {tabs.map((t) => (
               <button
                 key={t.id}
