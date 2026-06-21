@@ -12,7 +12,7 @@
 CREATE TABLE IF NOT EXISTS mesas (
   id        TEXT PRIMARY KEY,          -- "1".."13", "A", "B", "inv", "granja"...
   nombre    TEXT NOT NULL,
-  kind      TEXT NOT NULL DEFAULT 'mesa', -- mesa | inventario | granja | brazo | almacen
+  kind      TEXT NOT NULL DEFAULT 'mesa', -- mesa | modulo | inventario | granja | brazo | almacen
   x         INT  NOT NULL DEFAULT 0,
   y         INT  NOT NULL DEFAULT 0,
   w         INT  NOT NULL DEFAULT 100,
@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS mesas (
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS max_sillas INT NOT NULL DEFAULT 2;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS seats JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#ffffff';
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS descripcion TEXT DEFAULT '';
 
 -- ========== PRESENCIA (check-in / check-out) ==========
 -- Una fila por visita. salida = NULL significa que la persona sigue dentro.

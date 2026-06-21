@@ -4,17 +4,53 @@
 
 import { useMemo } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { TYPELBL, TYPECLR, rgba, fmtDate } from '../lib/constants.js';
 import { T, card } from '../theme.js';
 
 export default function AdminPanel() {
   const { changelog } = useInventory();
+  const { accounts, setInvAccess, session } = useAuth();
 
   const rows = useMemo(() => changelog.slice(0, 100), [changelog]);
+  const cuentas = useMemo(() => Object.values(accounts || {}).sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '')), [accounts]);
 
   return (
     <div>
       <h1 style={{ fontSize: 20, margin: '0 0 16px' }}>Panel administrador</h1>
+
+      {/* Acceso al inventario */}
+      <div style={{ ...card, overflow: 'hidden', marginBottom: 24 }}>
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.border}` }}>
+          <h3 style={{ margin: 0, fontSize: 14 }}>Acceso al inventario</h3>
+          <p style={{ margin: '2px 0 0', fontSize: 12, color: T.muted }}>El inventario es privado. Habilita qué correos pueden verlo y editarlo (el croquis y la granja quedan abiertos a invitados).</p>
+        </div>
+        {cuentas.length === 0 ? (
+          <div style={{ padding: 24, textAlign: 'center', color: T.muted, fontSize: 13 }}>Aún no hay cuentas registradas.</div>
+        ) : (
+          <div>
+            {cuentas.map((u) => {
+              const on = !!u.inv_access;
+              return (
+                <div key={u.email} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 20px', borderBottom: `1px solid ${T.border}` }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: T.ink }}>{u.nombre}{session && u.email === session.email ? ' · tú' : ''}</div>
+                    <div style={{ fontSize: 12, color: T.muted, fontFamily: T.mono }}>{u.email}</div>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: on ? '#15803D' : '#B45309', background: on ? '#F0FDF4' : '#FFFBEB', padding: '3px 9px', borderRadius: 20 }}>
+                    {on ? 'Con acceso' : 'Sin acceso'}
+                  </span>
+                  <button onClick={() => setInvAccess(u.email, !on)} style={{
+                    padding: '7px 14px', borderRadius: 8, border: `1px solid ${on ? '#FECACA' : T.primary}`,
+                    background: on ? '#fff' : T.primary, color: on ? '#DC2626' : '#fff',
+                    fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: T.font, whiteSpace: 'nowrap',
+                  }}>{on ? 'Revocar' : 'Dar acceso'}</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Resumen */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>

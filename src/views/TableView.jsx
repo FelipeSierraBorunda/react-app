@@ -10,13 +10,16 @@
 import { useMemo, useState } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useLab } from '../context/LabContext.jsx';
 import { CONTAINERS, rgba } from '../lib/constants.js';
 import { T, card } from '../theme.js';
 import ComponentDetailModal from '../components/ComponentDetailModal.jsx';
 
 export default function TableView({ go, goEdit, requireAuth }) {
-  const { comps, use, remove, edit, tipos, tcMap } = useInventory();
+  const { comps, use, remove, edit, tipos, tcMap, generalLocOf, esSuelto } = useInventory();
   const { loggedIn } = useAuth();
+  const { mesas } = useLab();
+  const mesaNombre = (id) => { const m = mesas.find((x) => x.id === id); return m ? m.nombre : null; };
   const [filters, setFilters] = useState({ tipo: '', cont: '', q: '' });
   const [sort, setSort] = useState({ col: 'codigoInterno', dir: 'asc' });
   const [detail, setDetail] = useState(null);
@@ -82,6 +85,7 @@ export default function TableView({ go, goEdit, requireAuth }) {
                 ].map(([col, label]) => (
                   <Th key={col} onClick={() => sortBy(col)}>{label}{caret(col)}</Th>
                 ))}
+                <Th>MESA/MÓDULO</Th>
                 <Th>ACCIONES</Th>
               </tr>
             </thead>
@@ -92,7 +96,8 @@ export default function TableView({ go, goEdit, requireAuth }) {
                   <Td><Chip color={tcMap[c.tipo]}>{c.tipo}</Chip></Td>
                   <Td>{c.descripcion}</Td>
                   <Td>{c.cantidad}</Td>
-                  <Td>{c.contenedor}</Td>
+                  <Td>{esSuelto(c) ? <span style={{ color: T.muted }}>Suelto</span> : c.contenedor}</Td>
+                  <Td>{mesaNombre(generalLocOf(c)) || <span style={{ color: '#CBD5E1' }}>—</span>}</Td>
                   <Td>
                     {loggedIn && (
                       <button onClick={() => setDetail(c)} style={miniBtn}>Ver</button>
@@ -101,7 +106,7 @@ export default function TableView({ go, goEdit, requireAuth }) {
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><Td colSpan={6}><div style={{ textAlign: 'center', color: T.muted, padding: 28 }}>Sin resultados</div></Td></tr>
+                <tr><Td colSpan={7}><div style={{ textAlign: 'center', color: T.muted, padding: 28 }}>Sin resultados</div></Td></tr>
               )}
             </tbody>
           </table>

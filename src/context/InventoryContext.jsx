@@ -9,7 +9,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import * as Inv from '../lib/inventory.js';
-import { TIPOS, TC } from '../lib/constants.js';
+import { TIPOS, TC, CONTAINERS } from '../lib/constants.js';
 import { useAuth } from './AuthContext.jsx';
 
 const InventoryContext = createContext(null);
@@ -24,6 +24,7 @@ export function InventoryProvider({ children }) {
   const [changelog, setChangelog] = useState([]);
   const [customBoxes, setCustomBoxes] = useState([]);
   const [customTypes, setCustomTypes] = useState([]);
+  const [contMesa, setContMesa] = useState({}); // { contenedorId: mesaId }
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,7 +45,12 @@ export function InventoryProvider({ children }) {
         const saved = localStorage.getItem('li_custom_boxes');
         if (saved) setCustomBoxes(JSON.parse(saved));
       } catch (e) {}
-      
+
+      // Mapa contenedor → mesa/módulo (compartido en Supabase, fallback local).
+      let cm = await Inv.fetchAjuste('cont_mesa');
+      if (!cm) { try { cm = JSON.parse(localStorage.getItem('li_cont_mesa') || '{}'); } catch (e) { cm = {}; } }
+      setContMesa(cm || {});
+
       setLoading(false);
     })();
   }, []);
@@ -134,6 +140,44 @@ export function InventoryProvider({ children }) {
     setCustomTypes((prev) => prev.filter((t) => t.nombre !== nombre));
   }, []);
 
-  const value = { comps, usage, changelog, loading, customBoxes, customTypes, tipos, tcMap, add, edit, remove, use, addCustomBox, addTipo, removeTipo, importMany };
+  // ---------- ubicación (almacenamiento jerárquico) ----------
+  // Catálogo completo de contenedores (base + personalizados), cada uno
+  // con la mesa/módulo donde está físicamente (ubicación general).
+  const allContainers = useMemo(
+    () => [...CONTAINERS, ...customBoxes].map((c) => ({ ...c, mesa: contMesa[c.id] || c.mesa || null })),
+    [customBoxes, contMesa]
+  );
+  const containerById = useCallback((id) => allContainers.find((c) => c.id === id) || null, [allContainers]);
+
+  // ¿Está suelto (no vive en un contenedor)?
+  const esSuelto = useCallback((c) => !c.contenedor || c.contenedor === 'SUELTO', []);
+
+  // Ubicación general (mesa/módulo) de un componente: si está suelto, su
+  // campo `mesa`; si vive en un contenedor, la mesa de ese contenedor.
+  const generalLocOf = useCallback((c) => {
+    if (esSuelto(c)) return c.mesa || null;
+    const ct = containerById(c.contenedor);
+    return ct ? ct.mesa : null;
+  }, [esSuelto, containerById]);
+
+  // Contenedores asignados a una mesa/módulo.
+  const containersInMesa = useCallback((mesaId) => allContainers.filter((c) => c.mesa === mesaId), [allContainers]);
+  // Componentes sueltos asentados directamente en una mesa/módulo.
+  const looseInMesa = useCallback((mesaId) => comps.filter((c) => esSuelto(c) && c.mesa === mesaId), [comps, esSuelto]);
+
+  // Admin: asigna (o limpia) la mesa/módulo de un contenedor. Persiste en
+  // Supabase (ajustes.cont_mesa) y en localStorage como respaldo.
+  const setContenedorMesa = useCallback((contId, mesaId) => {
+    setContMesa((prev) => {
+      const next = { ...prev };
+      if (mesaId) next[contId] = mesaId; else delete next[contId];
+      try { localStorage.setItem('li_cont_mesa', JSON.stringify(next)); } catch (e) {}
+      Inv.saveAjuste('cont_mesa', next);
+      return next;
+    });
+  }, []);
+
+  const value = { comps, usage, changelog, loading, customBoxes, customTypes, tipos, tcMap, add, edit, remove, use, addCustomBox, addTipo, removeTipo, importMany,
+    allContainers, containerById, esSuelto, generalLocOf, containersInMesa, looseInMesa, contMesa, setContenedorMesa };
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
 }

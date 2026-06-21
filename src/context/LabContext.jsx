@@ -9,7 +9,8 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import * as Lab from '../lib/lab.js';
-import { TOTAL_SILLAS, normalizeMesa } from '../lib/lab-layout.js';
+import { TOTAL_SILLAS, normalizeMesa, DEFAULT_MODULE_COLOR } from '../lib/lab-layout.js';
+import { notifyReservaCreada, notifyReservaCancelada } from '../lib/notify.js';
 import { useAuth } from './AuthContext.jsx';
 
 const LabContext = createContext(null);
@@ -150,12 +151,15 @@ export function LabProvider({ children }) {
     }
     const row = await Lab.createReserva({ mesa: mesa.id, session, inicio, fin, esDueno: owner });
     setReservas((prev) => [...prev, row]);
+    // Correos: confirmación (inmediata) + recordatorio (5 min antes).
+    notifyReservaCreada({ reserva: row, mesaNombre: mesa.nombre }).catch((e) => console.warn('[lab] notify:', e));
     return { ok: true, desplazadas: conflictos.filter((c) => !c.es_dueno).length };
   }, [session, reservas, esDueno]);
 
   const cancelarReserva = useCallback(async (id) => {
     await Lab.deleteReserva(id);
     setReservas((prev) => prev.filter((r) => r.id !== id));
+    notifyReservaCancelada(id).catch(() => {});
   }, []);
 
   // ---------- edición de mesas (admin) ----------
@@ -179,11 +183,14 @@ export function LabProvider({ children }) {
     return p;
   }, []);
 
-  const agregarMesa = useCallback(async (data) => {
+  const agregarMesa = useCallback(async (data = {}) => {
+    const esMod = data.kind && data.kind !== 'mesa';
     const base = normalizeMesa({
-      id: uid(), nombre: 'Mesa nueva', kind: 'mesa', x: 380, y: 230, w: 100, h: 48,
-      forma: 'rect', sillas: 0, silla_dir: 'bottom', duenos: [], objetos: [], pc: false,
-      orden: 60, color: '#ffffff', ...data,
+      id: uid(), nombre: esMod ? 'Módulo nuevo' : 'Mesa nueva', kind: 'mesa', x: 380, y: 230,
+      w: esMod ? 110 : 100, h: 48, forma: 'rect', sillas: 0, silla_dir: 'bottom', duenos: [], objetos: [],
+      pc: false, orden: 60, descripcion: '',
+      color: esMod ? (DEFAULT_MODULE_COLOR[data.kind] || '#475569') : '#ffffff',
+      ...data,
     });
     setMesas((prev) => [...prev, base]);
     try {

@@ -16,6 +16,7 @@ export default function Nav({ view, setView, onAuth }) {
   // Las pestañas de inventario solo se muestran dentro del módulo de inventario.
   const inventoryViews = ['visual', 'table', 'stats', 'manage'];
   const inInventory = inventoryViews.includes(view);
+  const inCroquis = ['croquis', 'labstats'].includes(view);
 
   const tabs = [];
   if (inInventory) {
@@ -24,6 +25,12 @@ export default function Nav({ view, setView, onAuth }) {
       { id: 'table', label: 'Inventario' },
       { id: 'stats', label: 'Estadísticas' },
       { id: 'manage', label: '+ Agregar componente' },
+    );
+  }
+  if (inCroquis) {
+    tabs.push(
+      { id: 'croquis', label: 'Croquis' },
+      { id: 'labstats', label: '📊 Estadísticas' },
     );
   }
   if (loggedIn) tabs.push({ id: 'account', label: 'Mi cuenta' });

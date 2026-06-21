@@ -115,8 +115,19 @@ export function normalizeMesa(m) {
   }
 
   const sillas = seats.filter((s) => s.on).length;
-  const color = m.color || (m.kind === 'mesa' ? '#ffffff' : null);
+  const color = m.color || (m.kind === 'mesa' ? '#ffffff' : DEFAULT_MODULE_COLOR[m.kind] || '#475569');
   return { ...m, max_sillas: max, seats, color, sillas };
+}
+
+// Color por defecto de cada tipo de módulo (zona no-mesa).
+export const DEFAULT_MODULE_COLOR = {
+  inventario: '#2563EB', almacen: '#2563EB', granja: '#EA580C', brazo: '#1E293B', modulo: '#475569',
+};
+
+// ¿Es un módulo (zona que no es mesa)? Los módulos no llevan sillas pero
+// sí pueden alojar sistemas de almacenamiento (gabinetes, cajas).
+export function esModulo(kind) {
+  return kind && kind !== 'mesa';
 }
 
 // Reconstruye el array de seats cuando cambia el tope (max_sillas).

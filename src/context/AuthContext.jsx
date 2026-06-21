@@ -6,7 +6,7 @@
    Supabase una vez al montar y restaura la sesión guardada.
    ===================================================================== */
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import * as Auth from '../lib/auth.js';
 import { ADMIN_PASSWORD } from '../lib/constants.js';
 
@@ -62,9 +62,23 @@ export function AuthProvider({ children }) {
     setIsAdmin(false);
   }, []);
 
+  // Admin: concede/revoca acceso al inventario y refresca el estado local.
+  const setInvAccess = useCallback(async (email, value) => {
+    await Auth.setInvAccess(email, value);
+    setAccounts((prev) => ({ ...prev, [email]: { ...prev[email], inv_access: !!value } }));
+  }, []);
+
+  // ¿La sesión actual puede ver el inventario? El admin siempre puede.
+  const invAccess = useMemo(() => {
+    if (isAdmin) return true;
+    if (!session) return false;
+    return !!(accounts[session.email] && accounts[session.email].inv_access);
+  }, [isAdmin, session, accounts]);
+
   const value = {
     accounts, session, isAdmin, ready,
     loggedIn: !!session,
+    invAccess, setInvAccess,
     login, register, logout, enterAdmin, exitAdmin,
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

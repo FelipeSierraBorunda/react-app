@@ -5,10 +5,12 @@
 import { useState } from 'react';
 import { T, card, btn } from '../theme.js';
 import { useInventory } from '../context/InventoryContext.jsx';
+import { useLab } from '../context/LabContext.jsx';
 import { Overlay } from './AuthModal.jsx';
 
 export default function ComponentDetailModal({ component, onClose, onUse, onDelete, onEdit }) {
-  const { tcMap } = useInventory();
+  const { tcMap, esSuelto, generalLocOf, containerById } = useInventory();
+  const { mesas } = useLab();
   const [useQty, setUseQty] = useState(1);
   const [busy, setBusy] = useState(false);
 
@@ -37,6 +39,15 @@ export default function ComponentDetailModal({ component, onClose, onUse, onDele
 
   if (!component) return null;
 
+  const suelto = esSuelto(component);
+  const cont = suelto ? null : containerById(component.contenedor);
+  const genId = generalLocOf(component);
+  const genMesa = mesas.find((m) => m.id === genId);
+  const especifica = suelto
+    ? 'Suelto'
+    : `${cont ? cont.name : component.contenedor}${cont?.compartments ? ` · Cajón ${component.cajon}` : ''}`;
+  const general = genMesa ? genMesa.nombre : (suelto ? '—' : 'Sin mesa asignada');
+
   return (
     <Overlay onClose={onClose}>
       <div style={{ ...card, padding: 28, maxWidth: 480, width: '100%' }} onClick={(e) => e.stopPropagation()}>
@@ -48,8 +59,8 @@ export default function ComponentDetailModal({ component, onClose, onUse, onDele
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 20 }}>
           <Stat label="Código fabricante" value={component.codigoFabricante} />
-          <Stat label="Contenedor" value={component.contenedor} />
-          <Stat label="Cajón" value={component.cajon} />
+          <Stat label="Ubicación específica" value={especifica} />
+          <Stat label="Ubicación general" value={general} />
           <Stat label="Cantidad" value={component.cantidad} />
           <Stat label="Espacio" value={component.espacioOcupado} />
         </div>

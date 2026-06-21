@@ -7,12 +7,15 @@
 
 import { useState } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
+import { useLab } from '../context/LabContext.jsx';
 import { rgba } from '../lib/constants.js';
 import { T } from '../theme.js';
 import { Overlay } from './AuthModal.jsx';
 
 export default function DrawerModal({ title, items, onClose, onUse, onDelete, onEdit, onAddHere, loggedIn }) {
-  const { tcMap } = useInventory();
+  const { tcMap, generalLocOf } = useInventory();
+  const { mesas } = useLab();
+  const mesaNombre = (id) => { const m = mesas.find((x) => x.id === id); return m ? m.nombre : null; };
   const [useTarget, setUseTarget] = useState(null); // {component} cuando se va a usar
   const [useQty, setUseQty] = useState(1);
 
@@ -68,7 +71,10 @@ export default function DrawerModal({ title, items, onClose, onUse, onDelete, on
                       <span style={{ fontSize: 11, fontWeight: 600, color: tcMap[mi.tipo] || '#64748B', background: rgba(tcMap[mi.tipo] || '#64748B', 0.1), padding: '3px 8px', borderRadius: 9 }}>{mi.tipo}</span>
                     </td>
                     <td style={{ padding: '10px 16px', fontSize: 12, fontFamily: T.mono, color: T.ink }}>{mi.codigoFabricante}</td>
-                    <td style={{ padding: '10px 16px', fontSize: 13, color: T.ink, maxWidth: 220 }}>{mi.descripcion}</td>
+                    <td style={{ padding: '10px 16px', fontSize: 13, color: T.ink, maxWidth: 220 }}>
+                      {mi.descripcion}
+                      {mesaNombre(generalLocOf(mi)) && <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>📍 {mesaNombre(generalLocOf(mi))}</div>}
+                    </td>
                     <td style={{ padding: '10px 16px', fontSize: 13, textAlign: 'right', fontWeight: 600, color: T.ink }}>{mi.cantidad}</td>
                     <td style={{ padding: '10px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {loggedIn && (

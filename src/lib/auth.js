@@ -66,6 +66,12 @@ export function logout() {
   try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
 }
 
+// Admin: concede o revoca el acceso al inventario de una cuenta.
+export async function setInvAccess(email, value) {
+  const res = await db.patch('usuarios', 'email', email, { inv_access: !!value });
+  return Array.isArray(res) ? res[0] : res;
+}
+
 function saveSession(email) {
   try { localStorage.setItem(SESSION_KEY, JSON.stringify(email)); } catch (e) {}
 }

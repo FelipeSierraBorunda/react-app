@@ -5,14 +5,16 @@
 import { useMemo, useState } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useLab } from '../context/LabContext.jsx';
 import { CONTAINERS, rgba } from '../lib/constants.js';
 import { T, card } from '../theme.js';
 import NewBoxModal from '../components/NewBoxModal.jsx';
 import DrawerModal from '../components/DrawerModal.jsx';
 
 export default function VisualView({ go, goEdit }) {
-  const { comps, customBoxes, addCustomBox, use, remove, tcMap } = useInventory();
-  const { loggedIn } = useAuth();
+  const { comps, customBoxes, addCustomBox, use, remove, tcMap, contMesa, setContenedorMesa } = useInventory();
+  const { loggedIn, isAdmin } = useAuth();
+  const { mesas } = useLab();
   const [active, setActive] = useState(CONTAINERS[0].id);
   const [newBoxOpen, setNewBoxOpen] = useState(false);
   const [drawer, setDrawer] = useState(null); // {cid, n} o {cid, all:true}
@@ -100,9 +102,26 @@ export default function VisualView({ go, goEdit }) {
       {/* Contenedor */}
       <div style={{ ...card, padding: 24 }}>
         <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700 }}>{ct.name}</h2>
-        <p style={{ margin: '0 0 20px', fontSize: 13, color: '#64748B' }}>
+        <p style={{ margin: '0 0 14px', fontSize: 13, color: '#64748B' }}>
           {(isG || isC12) ? 'Haz clic en un cajón para ver su contenido · los cajones coloreados tienen componentes' : 'Esta caja no tiene compartimentos · consulta su contenido abajo'}
         </p>
+
+        {/* Ubicación del contenedor (mesa/módulo). Editable por admin. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>📍 Ubicación:</span>
+          {isAdmin ? (
+            <select value={contMesa[active] || ''} onChange={(e) => setContenedorMesa(active, e.target.value)}
+              style={{ padding: '6px 10px', borderRadius: 7, border: `1px solid ${T.border}`, fontSize: 12.5, fontFamily: T.font, background: '#fff', color: '#0F172A' }}>
+              <option value="">Sin asignar</option>
+              {mesas.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+            </select>
+          ) : (
+            <span style={{ fontSize: 12.5, color: contMesa[active] ? '#0F172A' : '#94A3B8', fontWeight: 600 }}>
+              {(mesas.find((m) => m.id === contMesa[active]) || {}).nombre || 'Sin asignar'}
+            </span>
+          )}
+          <span style={{ fontSize: 11.5, color: '#94A3B8' }}>— dónde está físicamente este contenedor en el croquis</span>
+        </div>
 
         {/* GABINETE 8×8 */}
         {isG && (

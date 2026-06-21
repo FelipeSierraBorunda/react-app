@@ -104,8 +104,6 @@ export default function CroquisView({ go }) {
 
   const onMesaClick = (m) => {
     if (editMode) { setEditSel(m.id); return; }
-    if (m.kind === 'inventario' || m.kind === 'almacen') return go('table');
-    if (m.kind === 'granja' || m.kind === 'brazo') return setInfo(m);
     setSel(m);
   };
 
@@ -199,7 +197,7 @@ export default function CroquisView({ go }) {
           </div>
 
           {editMode ? (
-            <MesaEditor mesa={editLive} lab={lab} onClose={() => setEditSel(null)} />
+            <MesaEditor mesa={editLive} lab={lab} onClose={() => setEditSel(null)} onSelect={setEditSel} />
           ) : (
             <PresencePanel presentes={presentes} miPresencia={miPresencia} loggedIn={loggedIn} isAdmin={isAdmin} mesas={mesas} onSalir={salir} onForzar={lab.forzarSalida} now={now} />
           )}
@@ -266,6 +264,8 @@ function MesaNode({ m, occupants, reservadas, proximas, editMode, selected, onCl
   if (m.kind === 'inventario' || m.kind === 'almacen') { bg = C.inv; border = C.invBorde; txt = '#fff'; }
   if (m.kind === 'granja') { bg = C.granja; border = C.granjaBorde; txt = '#fff'; label = 'Granja FPGA'; }
   if (m.kind === 'brazo') { bg = C.brazo; border = C.brazo; txt = '#fff'; label = 'Brazo robot'; }
+  if (m.kind === 'modulo') { bg = m.color || '#475569'; border = '#334155'; txt = '#fff'; label = m.nombre; }
+  const esMod = m.kind !== 'mesa';
 
   const nOcc = occupants.length, nRes = reservadas.length, nProx = proximas.length;
   const seats = m.seats || [];
@@ -306,7 +306,7 @@ function MesaNode({ m, occupants, reservadas, proximas, editMode, selected, onCl
           }}>
             <span style={{ fontSize: isMesa ? 15 : 11, fontWeight: 700, color: txt, lineHeight: 1.1 }}>{label}</span>
             {m.pc && <span style={{ position: 'absolute', bottom: 2, right: 4, background: '#EFF6FF', color: '#2563EB', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 4 }}>PC</span>}
-            {(m.kind === 'inventario' || m.kind === 'almacen' || m.kind === 'granja') && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.85)' }}>abrir →</span>}
+            {esMod && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.85)' }}>ver →</span>}
           </div>
         )}
         {isMesa && (m.duenos || []).length > 0 && (
@@ -395,13 +395,18 @@ function PresencePanel({ presentes, miPresencia, loggedIn, isAdmin, mesas, onSal
 }
 
 /* ---------- panel de edición de mesa (admin) ---------- */
-function MesaEditor({ mesa, lab, onClose }) {
+function MesaEditor({ mesa, lab, onClose, onSelect }) {
+  const crear = async (kind) => { const m = await lab.agregarMesa(kind ? { kind } : {}); if (m && onSelect) onSelect(m.id); };
   if (!mesa) {
     return (
       <aside style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: 18, position: 'sticky', top: 16 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: T.ink, margin: '0 0 8px' }}>Editar plano</h3>
-        <p style={{ fontSize: 12.5, color: T.muted, margin: '0 0 16px' }}>Selecciona una mesa en el plano para editar sus datos, o crea una nueva.</p>
-        <button onClick={() => lab.agregarMesa()} style={{ ...btn('primary'), width: '100%' }}>+ Nueva mesa</button>
+        <p style={{ fontSize: 12.5, color: T.muted, margin: '0 0 16px' }}>Selecciona una mesa o módulo en el plano para editar sus datos, o crea uno nuevo.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button onClick={() => crear(null)} style={{ ...btn('primary'), width: '100%' }}>+ Nueva mesa</button>
+          <button onClick={() => crear('modulo')} style={{ ...btn('ghost'), width: '100%' }}>+ Nuevo módulo</button>
+        </div>
+        <p style={{ fontSize: 11.5, color: T.muted, margin: '12px 0 0' }}>Una <strong>mesa</strong> lleva sillas y reservas. Un <strong>módulo</strong> (granja, brazo, estación…) no lleva sillas, pero puede alojar gabinetes y cajas.</p>
       </aside>
     );
   }
@@ -437,6 +442,10 @@ function MesaEditor({ mesa, lab, onClose }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <Field label="Nombre / número">
           <input defaultValue={mesa.nombre} key={'n' + mesa.id} onBlur={(e) => set({ nombre: e.target.value.trim() || mesa.nombre })} style={inp} />
+        </Field>
+
+        <Field label="Descripción">
+          <textarea defaultValue={mesa.descripcion || ''} key={'d' + mesa.id} onBlur={(e) => set({ descripcion: e.target.value.trim() })} rows={2} placeholder={esMesa ? 'Notas de la mesa…' : 'Para qué sirve este módulo…'} style={{ ...inp, resize: 'vertical', minHeight: 48 }} />
         </Field>
 
         {/* color */}
@@ -517,7 +526,8 @@ function MesaEditor({ mesa, lab, onClose }) {
         </Field>
 
         <div style={{ display: 'flex', gap: 8, borderTop: `1px solid ${T.border}`, paddingTop: 12 }}>
-          <button onClick={() => lab.agregarMesa()} style={{ ...btn('ghost'), flex: 1 }}>+ Nueva</button>
+          <button onClick={() => crear(null)} style={{ ...btn('ghost'), flex: 1 }}>+ Mesa</button>
+          <button onClick={() => crear('modulo')} style={{ ...btn('ghost'), flex: 1 }}>+ Módulo</button>
           <button onClick={() => { if (confirm(`¿Eliminar ${mesa.nombre}?`)) { lab.eliminarMesa(mesa.id); onClose(); } }} style={{ ...btn('danger'), flex: 1 }}>Eliminar</button>
         </div>
       </div>

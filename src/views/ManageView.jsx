@@ -1,44 +1,59 @@
 /* =====================================================================
-   ManageView.jsx — Alta / edición de componentes  [MIGRADA · fiel al HTML]
+   ManageView.jsx — Alta / edición de componentes
+   ---------------------------------------------------------------------
+   NUEVO: ubicación en dos niveles
+   - Específica: en un contenedor (gabinete/caja + cajón) o "suelto".
+   - General: la mesa/módulo donde está. Si está en un contenedor, se
+     hereda de la mesa asignada a ese contenedor; si está suelto, se elige
+     directamente (sirve para piezas como una FPGA asentada en una mesa).
    ===================================================================== */
 
 import { useState, useEffect } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
-import { CONTAINERS } from '../lib/constants.js';
+import { useLab } from '../context/LabContext.jsx';
 import { nextCode } from '../lib/inventory.js';
 import { T } from '../theme.js';
 
 const EMPTY = {
   contenedor: 'G1', cajon: 1, posicion: 1, tipo: 'Resistencia',
-  codigoFabricante: '', codigoInterno: '', descripcion: '', cantidad: 0, espacioOcupado: 'Bajo', notas: '',
+  codigoFabricante: '', codigoInterno: '', descripcion: '', cantidad: 0, espacioOcupado: 'Bajo', notas: '', mesa: '',
 };
 
 export default function ManageView({ go, editComp, clearEdit }) {
-  const { comps, customBoxes, tipos, add, edit } = useInventory();
+  const { comps, allContainers, tipos, add, edit } = useInventory();
+  const { mesas, ensureLoaded } = useLab();
   const [form, setForm] = useState(EMPTY);
+  const [ubic, setUbic] = useState('contenedor'); // contenedor | suelto
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const isEditing = !!editComp;
 
+  useEffect(() => { ensureLoaded(); }, [ensureLoaded]);
+
   // Precargar datos al entrar en modo edición
   useEffect(() => {
     if (editComp) {
       setForm({ ...EMPTY, ...editComp });
+      setUbic(editComp.contenedor && editComp.contenedor !== 'SUELTO' ? 'contenedor' : 'suelto');
     } else {
       setForm(EMPTY);
+      setUbic('contenedor');
     }
   }, [editComp]);
 
-  const allBoxes = [...CONTAINERS, ...customBoxes];
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const ct = allBoxes.find((c) => c.id === form.contenedor);
-  const hasComp = !!ct?.compartments;
+  const ct = allContainers.find((c) => c.id === form.contenedor);
+  const hasComp = ubic === 'contenedor' && !!ct?.compartments;
   const gridCols = ct?.type === 'gabinete' ? 8 : 6;
   const cajonButtons = hasComp ? Array.from({ length: ct.compartments }, (_, i) => i + 1) : [];
-  // En edición conserva su código; al agregar calcula el siguiente
-  const code = isEditing ? (form.codigoInterno || '') : nextCode(form.contenedor, comps);
+  const code = isEditing ? (form.codigoInterno || '') : nextCode(ubic === 'suelto' ? '' : form.contenedor, comps);
+
+  // Sitios donde puede estar algo: mesas Y módulos (todas las zonas).
+  const sitios = mesas.filter(Boolean);
+  const mesaNombre = (id) => { const m = mesas.find((x) => x.id === id); return m ? m.nombre : null; };
+  const generalDeContenedor = ct ? mesaNombre(ct.mesa) : null;
 
   function onContChange(e) {
     const c = e.target.value;
@@ -48,15 +63,27 @@ export default function ManageView({ go, editComp, clearEdit }) {
   async function save(go2) {
     setError('');
     if (!form.codigoFabricante) return setError('El Código Fabricante es obligatorio');
+    if (ubic === 'suelto' && !form.mesa) return setError('Elige la mesa o módulo donde está la pieza');
     setBusy(true);
+
+    // Payload limpio (sin el campo local "ubic").
+    const base = {
+      tipo: form.tipo, codigoFabricante: form.codigoFabricante, descripcion: form.descripcion,
+      cantidad: parseInt(form.cantidad, 10) || 0, espacioOcupado: form.espacioOcupado, notas: form.notas,
+      codigoInterno: code, posicion: parseInt(form.posicion, 10) || 1,
+    };
+    const payload = ubic === 'suelto'
+      ? { ...base, contenedor: '', cajon: 1, mesa: form.mesa }
+      : { ...base, contenedor: form.contenedor, cajon: parseInt(form.cajon, 10) || 1, mesa: '' };
+
     try {
       if (isEditing) {
-        await edit(editComp.id, { ...form, codigoInterno: code });
+        await edit(editComp.id, payload);
         clearEdit && clearEdit();
         go && go('table');
       } else {
-        await add({ ...form, codigoInterno: code });
-        setForm(EMPTY);
+        await add(payload);
+        setForm(EMPTY); setUbic('contenedor');
         if (go2) go && go('visual');
       }
     } catch (e) {
@@ -85,14 +112,44 @@ export default function ManageView({ go, editComp, clearEdit }) {
               {tipos.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </Field>
-          <Field label="Contenedor">
-            <select value={form.contenedor} onChange={onContChange} style={input}>
-              {allBoxes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </Field>
-          <Field label="Descripción">
-            <input value={form.descripcion} onChange={set('descripcion')} placeholder="Descripción legible en español" style={input} />
-          </Field>
+
+          {/* ---------- UBICACIÓN ---------- */}
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>¿Dónde está?</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[['contenedor', 'En un contenedor', 'Gabinete o caja'], ['suelto', 'Suelto en mesa/módulo', 'Pieza asentada, p. ej. una FPGA']].map(([id, t1, t2]) => (
+                <button key={id} type="button" onClick={() => setUbic(id)} style={{
+                  flex: 1, textAlign: 'left', padding: '10px 12px', borderRadius: 8, cursor: 'pointer', fontFamily: T.font,
+                  border: `1px solid ${ubic === id ? T.primary : T.border}`, background: ubic === id ? T.primarySoft : '#fff',
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: ubic === id ? T.primary : '#334155' }}>{t1}</div>
+                  <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{t2}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {ubic === 'contenedor' ? (
+            <>
+              <Field label="Contenedor">
+                <select value={form.contenedor} onChange={onContChange} style={input}>
+                  {allContainers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Ubicación general (heredada)">
+                <div style={{ ...input, display: 'flex', alignItems: 'center', color: generalDeContenedor ? '#0F172A' : '#94A3B8', background: '#F8FAFC' }}>
+                  {generalDeContenedor || 'Contenedor sin mesa asignada'}
+                </div>
+              </Field>
+            </>
+          ) : (
+            <Field label="Mesa o módulo donde está *">
+              <select value={form.mesa} onChange={set('mesa')} style={input}>
+                <option value="">— Elegir —</option>
+                {sitios.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+              </select>
+            </Field>
+          )}
 
           {hasComp && (
             <div style={{ gridColumn: '1/-1' }}>
@@ -112,6 +169,9 @@ export default function ManageView({ go, editComp, clearEdit }) {
             </div>
           )}
 
+          <Field label="Descripción">
+            <input value={form.descripcion} onChange={set('descripcion')} placeholder="Descripción legible en español" style={input} />
+          </Field>
           <Field label="Cantidad">
             <input type="number" min="0" value={form.cantidad} onChange={set('cantidad')} style={input} />
           </Field>
@@ -154,7 +214,7 @@ export default function ManageView({ go, editComp, clearEdit }) {
   );
 }
 
-const input = { width: '100%', padding: '9px 12px', border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13, fontFamily: T.font, color: '#0F172A', outline: 'none', background: '#fff' };
+const input = { width: '100%', padding: '9px 12px', border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13, fontFamily: T.font, color: '#0F172A', outline: 'none', background: '#fff', boxSizing: 'border-box' };
 const lbl = { display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 };
 function Field({ label, children }) {
   return <div><label style={lbl}>{label}</label>{children}</div>;

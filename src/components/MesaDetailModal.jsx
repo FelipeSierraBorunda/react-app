@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import { useLab } from '../context/LabContext.jsx';
+import { useInventory } from '../context/InventoryContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { T, btn } from '../theme.js';
 import { Overlay } from './AuthModal.jsx';
@@ -19,11 +20,13 @@ const fmt = (s) => { try { return new Date(s).toLocaleString('es', { day: '2-dig
 
 export default function MesaDetailModal({ mesa, onClose, go }) {
   const lab = useLab();
+  const inv = useInventory();
   const { loggedIn, session } = useAuth();
   const { presentesPorMesa, reservas, miPresencia, esDueno, entrar, salir, reservar, cancelarReserva } = lab;
   const [tab, setTab] = useState('info'); // info | reservar | editar
   const [msg, setMsg] = useState(null);
 
+  const esMod = mesa.kind !== 'mesa';
   const occ = presentesPorMesa[mesa.id] || [];
   const owner = esDueno(mesa);
   const misReservas = reservas.filter((r) => r.mesa === mesa.id && r.estado === 'activa' && new Date(r.fin) > new Date());
@@ -47,7 +50,8 @@ export default function MesaDetailModal({ mesa, onClose, go }) {
                   <span key={d} style={{ fontSize: 11, fontWeight: 600, color: '#7C3AED', background: '#F5F3FF', padding: '2px 8px', borderRadius: 20 }}>👤 {lab.nombreDe(d)}</span>
                 ))}
                 {mesa.pc && <span style={{ fontSize: 11, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', padding: '2px 8px', borderRadius: 20 }}>PC</span>}
-                <span style={{ fontSize: 11, fontWeight: 600, color: T.inkSoft, background: '#F1F5F9', padding: '2px 8px', borderRadius: 20 }}>{mesa.sillas} silla{mesa.sillas === 1 ? '' : 's'}</span>
+                {!esMod && <span style={{ fontSize: 11, fontWeight: 600, color: T.inkSoft, background: '#F1F5F9', padding: '2px 8px', borderRadius: 20 }}>{mesa.sillas} silla{mesa.sillas === 1 ? '' : 's'}</span>}
+                {esMod && <span style={{ fontSize: 11, fontWeight: 600, color: T.inkSoft, background: '#F1F5F9', padding: '2px 8px', borderRadius: 20 }}>Módulo</span>}
                 {owner && <span style={{ fontSize: 11, fontWeight: 600, color: '#16A34A', background: '#F0FDF4', padding: '2px 8px', borderRadius: 20 }}>Eres dueño</span>}
               </div>
             </div>
@@ -56,7 +60,7 @@ export default function MesaDetailModal({ mesa, onClose, go }) {
 
           {/* pestañas */}
           <div style={{ display: 'flex', gap: 4, marginTop: 16, borderBottom: `1px solid ${T.border}` }}>
-            {[['info', 'Detalle'], ['reservar', 'Reservar'], loggedIn && ['editar', 'Editar']].filter(Boolean).map(([id, label]) => (
+            {[['info', 'Detalle'], !esMod && ['reservar', 'Reservar'], loggedIn && ['editar', 'Editar']].filter(Boolean).map(([id, label]) => (
               <button key={id} onClick={() => { setTab(id); setMsg(null); }} style={{
                 padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
                 color: tab === id ? T.primary : T.muted, borderBottom: `2px solid ${tab === id ? T.primary : 'transparent'}`, marginBottom: -1,
@@ -72,17 +76,17 @@ export default function MesaDetailModal({ mesa, onClose, go }) {
           )}
 
           {tab === 'info' && (
-            <InfoTab mesa={mesa} occ={occ} misReservas={misReservas} onCancel={cancelarReserva} go={go} />
+            <InfoTab mesa={mesa} esMod={esMod} inv={inv} occ={occ} misReservas={misReservas} onCancel={cancelarReserva} go={go} onClose={onClose} />
           )}
-          {tab === 'reservar' && (
+          {tab === 'reservar' && !esMod && (
             <ReserveTab mesa={mesa} owner={owner} loggedIn={loggedIn} onReservar={reservar} setMsg={setMsg} />
           )}
           {tab === 'editar' && loggedIn && (
-            <EditTab mesa={mesa} lab={lab} setMsg={setMsg} onClose={onClose} />
+            <EditTab mesa={mesa} esMod={esMod} lab={lab} setMsg={setMsg} onClose={onClose} />
           )}
 
-          {/* acción check-in (siempre visible en Detalle) */}
-          {tab === 'info' && loggedIn && (
+          {/* acción check-in (solo mesas, en Detalle) */}
+          {tab === 'info' && loggedIn && !esMod && (
             <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
               {aquiYo ? (
                 <button onClick={async () => { await salir(); setMsg({ ok: true, t: 'Salida registrada' }); }} style={{ ...btn('danger'), flex: 1 }}>Registrar salida</button>
@@ -100,9 +104,49 @@ export default function MesaDetailModal({ mesa, onClose, go }) {
 }
 
 /* ---------- pestaña Detalle ---------- */
-function InfoTab({ mesa, occ, misReservas, onCancel, go }) {
+function InfoTab({ mesa, esMod, inv, occ, misReservas, onCancel, go, onClose }) {
+  const contenedores = inv.containersInMesa(mesa.id);
+  const sueltos = inv.looseInMesa(mesa.id);
+  const irInventario = () => { onClose && onClose(); go && go('table'); };
+  const irVisual = () => { onClose && onClose(); go && go('visual'); };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {mesa.descripcion && (
+        <p style={{ fontSize: 13, color: T.inkSoft, lineHeight: 1.5, margin: 0 }}>{mesa.descripcion}</p>
+      )}
+
+      {/* almacenamiento aquí */}
+      <Section title="Almacenamiento aquí">
+        {contenedores.length === 0 && sueltos.length === 0 ? (
+          <Empty>No hay sistemas de almacenamiento ni piezas sueltas registradas aquí.</Empty>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {contenedores.map((c) => {
+              const n = inv.comps.filter((x) => x.contenedor === c.id).length;
+              return (
+                <button key={c.id} onClick={irVisual} style={storeRow}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 14 }}>{c.type === 'gabinete' ? '🗄️' : '📦'}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>{c.name}</span>
+                  </span>
+                  <span style={{ fontSize: 11.5, color: T.muted }}>{n} comp. · abrir →</span>
+                </button>
+              );
+            })}
+            {sueltos.length > 0 && (
+              <button onClick={irInventario} style={storeRow}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14 }}>🔩</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>Piezas sueltas</span>
+                </span>
+                <span style={{ fontSize: 11.5, color: T.muted }}>{sueltos.length} · ver →</span>
+              </button>
+            )}
+          </div>
+        )}
+      </Section>
+
       {/* objetos / equipo */}
       <Section title="Equipo y objetos">
         {(mesa.objetos || []).length === 0 ? (
@@ -116,41 +160,47 @@ function InfoTab({ mesa, occ, misReservas, onCancel, go }) {
         )}
       </Section>
 
-      {/* presentes */}
-      <Section title={`Quién está (${occ.length})`}>
-        {occ.length === 0 ? <Empty>Nadie en esta mesa.</Empty> : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {occ.map((p) => (
-              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#0F172A', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 700 }}>{iniciales(p.nombre)}</div>
-                <span style={{ fontSize: 13, color: T.ink }}>{p.nombre}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
-
-      {/* reservas activas */}
-      <Section title="Reservas próximas">
-        {misReservas.length === 0 ? <Empty>Sin reservas activas.</Empty> : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {misReservas.map((r) => (
-              <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '7px 10px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8 }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#92400E' }}>{r.nombre}{r.es_dueno ? ' · dueño' : ''}</div>
-                  <div style={{ fontSize: 11, color: '#B45309' }}>{fmt(r.inicio)} – {fmt(r.fin)}</div>
+      {/* presentes (solo mesas) */}
+      {!esMod && (
+        <Section title={`Quién está (${occ.length})`}>
+          {occ.length === 0 ? <Empty>Nadie en esta mesa.</Empty> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {occ.map((p) => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#0F172A', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 700 }}>{iniciales(p.nombre)}</div>
+                  <span style={{ fontSize: 13, color: T.ink }}>{p.nombre}</span>
                 </div>
-                <button onClick={() => onCancel(r.id)} style={{ fontSize: 11, fontWeight: 600, color: '#B91C1C', background: 'none', border: 'none', cursor: 'pointer' }}>Cancelar</button>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* reservas activas (solo mesas) */}
+      {!esMod && (
+        <Section title="Reservas próximas">
+          {misReservas.length === 0 ? <Empty>Sin reservas activas.</Empty> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {misReservas.map((r) => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '7px 10px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#92400E' }}>{r.nombre}{r.es_dueno ? ' · dueño' : ''}</div>
+                    <div style={{ fontSize: 11, color: '#B45309' }}>{fmt(r.inicio)} – {fmt(r.fin)}</div>
+                  </div>
+                  <button onClick={() => onCancel(r.id)} style={{ fontSize: 11, fontWeight: 600, color: '#B91C1C', background: 'none', border: 'none', cursor: 'pointer' }}>Cancelar</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
 
       {mesa.link && <a href={mesa.link} target="_blank" rel="noreferrer" style={{ fontSize: 13, fontWeight: 600, color: T.primary }}>Abrir enlace →</a>}
     </div>
   );
 }
+
+const storeRow = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '9px 11px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit', width: '100%', textAlign: 'left' };
 
 /* ---------- pestaña Reservar ---------- */
 function ReserveTab({ mesa, owner, loggedIn, onReservar, setMsg }) {
@@ -198,9 +248,10 @@ function ReserveTab({ mesa, owner, loggedIn, onReservar, setMsg }) {
 }
 
 /* ---------- pestaña Editar ---------- */
-function EditTab({ mesa, lab, setMsg, onClose }) {
+function EditTab({ mesa, esMod, lab, setMsg, onClose }) {
   const [f, setF] = useState({
     nombre: mesa.nombre,
+    descripcion: mesa.descripcion || '',
     duenos: [...(mesa.duenos || [])],
     pc: !!mesa.pc,
     link: mesa.link || '',
@@ -218,6 +269,7 @@ function EditTab({ mesa, lab, setMsg, onClose }) {
     setBusy(true);
     const patch = {
       nombre: f.nombre.trim() || mesa.nombre,
+      descripcion: f.descripcion.trim(),
       duenos: f.duenos.slice(0, 2),
       pc: f.pc,
       link: f.link.trim(),
@@ -225,12 +277,16 @@ function EditTab({ mesa, lab, setMsg, onClose }) {
     };
     await lab.guardarMesa(mesa.id, patch);
     setBusy(false);
-    setMsg({ ok: true, t: 'Mesa actualizada.' });
+    setMsg({ ok: true, t: esMod ? 'Módulo actualizado.' : 'Mesa actualizada.' });
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Field label="Nombre"><input value={f.nombre} onChange={(e) => set('nombre', e.target.value)} style={inp} /></Field>
+
+      <Field label="Descripción">
+        <textarea value={f.descripcion} onChange={(e) => set('descripcion', e.target.value)} rows={2} placeholder={esMod ? 'Para qué sirve este módulo…' : 'Notas de la mesa…'} style={{ ...inp, resize: 'vertical', minHeight: 52 }} />
+      </Field>
 
       {esMesa && (
         <>

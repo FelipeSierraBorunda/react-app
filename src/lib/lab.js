@@ -49,6 +49,7 @@ export async function createMesa(data) {
     pc: !!data.pc, orden: data.orden ?? 60,
     // nuevas columnas (requieren el ALTER de lab-schema.sql)
     max_sillas: data.max_sillas ?? 2, seats: data.seats || [], color: data.color || '#ffffff',
+    descripcion: data.descripcion || '',
   };
   return db.insert('mesas', row);
 }

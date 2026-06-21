@@ -66,6 +66,7 @@ export async function importComponents(items) {
     cantidad: parseInt(c.cantidad, 10) || 0,
     espacioOcupado: c.espacioOcupado || 'Bajo',
     notas: c.notas || '',
+    mesa: c.mesa || '',
   }));
   // Subir en lotes de 200 para no exceder límites de la API
   const out = [];
@@ -126,4 +127,26 @@ export async function createTipo({ nombre, color }) {
 
 export async function deleteTipo(nombre) {
   return db.del('tipos', 'nombre', nombre);
+}
+
+// ---------- ajustes (clave/valor compartido en Supabase) ----------
+// Guarda configuraciones compartidas entre usuarios. Hoy: 'cont_mesa'
+// (mapa contenedor → mesa/módulo). Si la tabla no existe, devuelve null.
+export async function fetchAjuste(clave) {
+  try {
+    const rows = await db.select('ajustes');
+    const row = (rows || []).find((r) => r.clave === clave);
+    return row ? row.valor : null;
+  } catch (e) {
+    console.error('[inventory] fetchAjuste:', e);
+    return null;
+  }
+}
+
+export async function saveAjuste(clave, valor) {
+  try {
+    await db.upsert('ajustes', [{ clave, valor, actualizado: new Date().toISOString() }]);
+  } catch (e) {
+    console.error('[inventory] saveAjuste:', e);
+  }
 }

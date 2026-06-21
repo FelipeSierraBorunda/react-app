@@ -23,7 +23,7 @@ import CroquisView from './views/CroquisView.jsx';
 import LabStatsView from './views/LabStatsView.jsx';
 
 export default function App() {
-  const { ready, loggedIn } = useAuth();
+  const { ready, loggedIn, invAccess, isAdmin } = useAuth();
   const { loading } = useInventory();
   const [view, setView] = useState('menu');
   const [authOpen, setAuthOpen] = useState(false);
@@ -41,6 +41,12 @@ export default function App() {
     return <Center>Cargando inventario…</Center>;
   }
 
+  // El inventario es privado: requiere sesión + aprobación del admin.
+  const invGate = (node) => {
+    if (invAccess) return node;
+    return <InventoryGate loggedIn={loggedIn} onAuth={() => setAuthOpen(true)} go={setView} />;
+  };
+
   const views = {
     menu: <MenuView go={setView} />,
     croquis: <CroquisView go={setView} />,
@@ -52,10 +58,10 @@ export default function App() {
         <button onClick={() => setView('menu')} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid ${T.border}`, background: '#fff', color: T.inkSoft, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>← Volver al menú</button>
       </div>
     ),
-    visual: <VisualView go={setView} goEdit={goEdit} requireAuth={requireAuth} />,
-    table: <TableView go={setView} goEdit={goEdit} requireAuth={requireAuth} />,
-    stats: <StatsView />,
-    manage: loggedIn ? <ManageView go={setView} editComp={editComp} clearEdit={() => setEditComp(null)} /> : <Center>Debes iniciar sesión</Center>,
+    visual: invGate(<VisualView go={setView} goEdit={goEdit} requireAuth={requireAuth} />),
+    table: invGate(<TableView go={setView} goEdit={goEdit} requireAuth={requireAuth} />),
+    stats: invGate(<StatsView />),
+    manage: invGate(<ManageView go={setView} editComp={editComp} clearEdit={() => setEditComp(null)} />),
     account: loggedIn ? <AccountView go={setView} /> : <Center>Debes iniciar sesión</Center>,
     admin: loggedIn ? <AdminPanel /> : <Center>Acceso denegado</Center>,
   };
@@ -75,6 +81,34 @@ function Center({ children }) {
   return (
     <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', color: T.muted, fontFamily: T.font }}>
       {children}
+    </div>
+  );
+}
+
+// Pantalla mostrada cuando alguien sin permiso intenta abrir el inventario.
+function InventoryGate({ loggedIn, onAuth, go }) {
+  return (
+    <div style={{ maxWidth: 480, margin: '40px auto 0', textAlign: 'center', background: '#fff', border: `1px solid ${T.border}`, borderRadius: 16, padding: 36 }}>
+      <div style={{ width: 52, height: 52, borderRadius: 13, background: '#EFF6FF', color: '#2563EB', display: 'grid', placeItems: 'center', margin: '0 auto 16px', fontSize: 24 }}>🔒</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: T.ink, marginBottom: 8 }}>Inventario privado</div>
+      {!loggedIn ? (
+        <>
+          <p style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.55, margin: '0 0 18px' }}>
+            El inventario solo está disponible para usuarios autorizados. Inicia sesión y espera la aprobación del administrador.
+          </p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <button onClick={onAuth} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: T.primary, color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: T.font }}>Iniciar sesión</button>
+            <button onClick={() => go('menu')} style={{ padding: '10px 20px', borderRadius: 8, border: `1px solid ${T.border}`, background: '#fff', color: T.inkSoft, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: T.font }}>← Menú</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.55, margin: '0 0 18px' }}>
+            Tu cuenta aún no tiene acceso al inventario. Pídele al administrador que te habilite desde el <strong>Panel administrador → Acceso al inventario</strong>.
+          </p>
+          <button onClick={() => go('menu')} style={{ padding: '10px 20px', borderRadius: 8, border: `1px solid ${T.border}`, background: '#fff', color: T.inkSoft, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: T.font }}>← Volver al menú</button>
+        </>
+      )}
     </div>
   );
 }
