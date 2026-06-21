@@ -13,7 +13,7 @@ import { useLab } from '../context/LabContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { STAGE_W, STAGE_H } from '../lib/lab-layout.js';
 import { T, btn } from '../theme.js';
-import { Overlay } from './AuthModal.jsx';
+import { Overlay } from '../components/AuthModal.jsx';
 import MesaDetailModal from '../components/MesaDetailModal.jsx';
 
 const C = {
