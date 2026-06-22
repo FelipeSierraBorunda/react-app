@@ -18,7 +18,7 @@ export default function Nav({ view, setView, onAuth }) {
   // Las pestañas de inventario solo se muestran dentro del módulo de inventario.
   const inventoryViews = ['visual', 'table', 'stats', 'prestamos', 'auditoria', 'manage'];
   const inInventory = inventoryViews.includes(view);
-  const inCroquis = ['croquis', 'labstats'].includes(view);
+  const inCroquis = ['croquis', 'labstats', 'juego'].includes(view);
 
   const tabs = [];
   if (inInventory) {
@@ -34,6 +34,7 @@ export default function Nav({ view, setView, onAuth }) {
   if (inCroquis) {
     tabs.push(
       { id: 'croquis', label: t('nav.croquis') },
+      { id: 'juego', label: t('nav.virtualLab') },
       { id: 'labstats', label: t('nav.labstats') },
     );
   }

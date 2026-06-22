@@ -15,32 +15,63 @@ import { db } from './supabase.js';
 export const BLOQUE_MIN = 30;      // minutos por bloque
 export const MONEDAS_BLOQUE = 10;  // monedas por bloque
 
-// ---------- catálogo de la tienda ----------
-// tipo: skin (color de ropa) | sombrero | mascota | escritorio
+// ---------- catálogo de la tienda (OXXO del lab) ----------
+// tipo: outfit (ropa) | sombrero | mascota | escritorio | aura
 export const TIENDA = [
-  // Skins (color de la bata / ropa)
-  { id: 'skin_azul',    tipo: 'skin', nombre: 'Bata azul',       precio: 0,   color: '#2563EB' },
-  { id: 'skin_rojo',    tipo: 'skin', nombre: 'Bata roja',       precio: 30,  color: '#DC2626' },
-  { id: 'skin_verde',   tipo: 'skin', nombre: 'Bata verde',      precio: 30,  color: '#16A34A' },
-  { id: 'skin_morado',  tipo: 'skin', nombre: 'Bata morada',     precio: 60,  color: '#7C3AED' },
-  { id: 'skin_dorado',  tipo: 'skin', nombre: 'Bata dorada',     precio: 200, color: '#D97706' },
+  // Outfits (ropa completa) — color principal + acento
+  { id: 'out_bata',    tipo: 'outfit', nombre: 'Bata de lab',     precio: 0,   color: '#E5E7EB', acento: '#94A3B8' },
+  { id: 'out_azul',    tipo: 'outfit', nombre: 'Overol azul',     precio: 40,  color: '#2563EB', acento: '#1E3A8A' },
+  { id: 'out_verde',   tipo: 'outfit', nombre: 'Polo verde',      precio: 40,  color: '#16A34A', acento: '#14532D' },
+  { id: 'out_hoodie',  tipo: 'outfit', nombre: 'Hoodie negro',    precio: 90,  color: '#111827', acento: '#374151' },
+  { id: 'out_varsity', tipo: 'outfit', nombre: 'Chamarra varsity', precio: 140, color: '#B91C1C', acento: '#FCD34D' },
+  { id: 'out_neon',    tipo: 'outfit', nombre: 'Traje neón',      precio: 220, color: '#10B981', acento: '#A7F3D0' },
+  { id: 'out_gold',    tipo: 'outfit', nombre: 'Traje dorado',    precio: 400, color: '#D97706', acento: '#FDE68A' },
   // Sombreros
-  { id: 'hat_none',     tipo: 'sombrero', nombre: 'Sin sombrero', precio: 0,  color: 'transparent' },
-  { id: 'hat_grad',     tipo: 'sombrero', nombre: 'Birrete',      precio: 80,  color: '#0F172A' },
-  { id: 'hat_safety',   tipo: 'sombrero', nombre: 'Casco',        precio: 50,  color: '#F59E0B' },
-  { id: 'hat_crown',    tipo: 'sombrero', nombre: 'Corona',       precio: 250, color: '#EAB308' },
+  { id: 'hat_none',    tipo: 'sombrero', nombre: 'Sin sombrero',  precio: 0,   color: 'transparent' },
+  { id: 'hat_cap',     tipo: 'sombrero', nombre: 'Gorra',         precio: 50,  color: '#DC2626' },
+  { id: 'hat_safety',  tipo: 'sombrero', nombre: 'Casco EPP',     precio: 70,  color: '#F59E0B' },
+  { id: 'hat_grad',    tipo: 'sombrero', nombre: 'Birrete',       precio: 120, color: '#0F172A' },
+  { id: 'hat_beanie',  tipo: 'sombrero', nombre: 'Gorro',         precio: 90,  color: '#7C3AED' },
+  { id: 'hat_crown',   tipo: 'sombrero', nombre: 'Corona',        precio: 500, color: '#EAB308' },
   // Mascotas
-  { id: 'pet_none',     tipo: 'mascota', nombre: 'Sin mascota',   precio: 0,   color: 'transparent' },
-  { id: 'pet_robot',    tipo: 'mascota', nombre: 'Robot',         precio: 120, color: '#64748B' },
-  { id: 'pet_cat',      tipo: 'mascota', nombre: 'Gato',          precio: 90,  color: '#F97316' },
-  { id: 'pet_chip',     tipo: 'mascota', nombre: 'Chip vivo',     precio: 150, color: '#10B981' },
-  // Escritorios (color del tapete)
-  { id: 'desk_gris',    tipo: 'escritorio', nombre: 'Tapete gris', precio: 0,  color: '#E2E8F0' },
-  { id: 'desk_azul',    tipo: 'escritorio', nombre: 'Tapete azul', precio: 40, color: '#BFDBFE' },
-  { id: 'desk_neon',    tipo: 'escritorio', nombre: 'Tapete neón', precio: 110, color: '#A7F3D0' },
+  { id: 'pet_none',    tipo: 'mascota', nombre: 'Sin mascota',    precio: 0,   color: 'transparent' },
+  { id: 'pet_cat',     tipo: 'mascota', nombre: 'Gato',           precio: 110, color: '#F97316' },
+  { id: 'pet_dog',     tipo: 'mascota', nombre: 'Perro',          precio: 130, color: '#A16207' },
+  { id: 'pet_robot',   tipo: 'mascota', nombre: 'Robot',          precio: 200, color: '#64748B' },
+  { id: 'pet_drone',   tipo: 'mascota', nombre: 'Dron',           precio: 260, color: '#0EA5E9' },
+  { id: 'pet_chip',    tipo: 'mascota', nombre: 'Chip vivo',      precio: 320, color: '#10B981' },
+  // Escritorios (color del tapete/piso bajo el avatar)
+  { id: 'desk_gris',   tipo: 'escritorio', nombre: 'Piso gris',   precio: 0,   color: '#E2E8F0' },
+  { id: 'desk_madera', tipo: 'escritorio', nombre: 'Piso madera', precio: 60,  color: '#D6A45B' },
+  { id: 'desk_azul',   tipo: 'escritorio', nombre: 'Piso azul',   precio: 80,  color: '#BFDBFE' },
+  { id: 'desk_neon',   tipo: 'escritorio', nombre: 'Piso neón',   precio: 180, color: '#A7F3D0' },
+  // Auras (efecto alrededor del avatar)
+  { id: 'aura_none',   tipo: 'aura', nombre: 'Sin aura',          precio: 0,   color: 'transparent' },
+  { id: 'aura_glow',   tipo: 'aura', nombre: 'Aura brillante',    precio: 300, color: '#FACC15' },
+  { id: 'aura_ice',    tipo: 'aura', nombre: 'Aura de hielo',     precio: 300, color: '#67E8F9' },
 ];
 
-export const EQUIPADO_DEFAULT = { skin: 'skin_azul', sombrero: 'hat_none', mascota: 'pet_none', escritorio: 'desk_gris' };
+export const EQUIPADO_DEFAULT = {
+  outfit: 'out_bata', sombrero: 'hat_none', mascota: 'pet_none', escritorio: 'desk_gris', aura: 'aura_none',
+  // personalización gratuita
+  pelo: 'pelo_corto', pelo_color: '#3B2A20', piel: '#F2C9A0',
+};
+
+// Estilos de pelo gratuitos (id + etiqueta). El render vive en GameView.
+export const PELOS = [
+  { id: 'pelo_none',  nombre: 'Rapado' },
+  { id: 'pelo_corto', nombre: 'Corto' },
+  { id: 'pelo_largo', nombre: 'Largo' },
+  { id: 'pelo_chongo', nombre: 'Chongo' },
+  { id: 'pelo_afro',  nombre: 'Afro' },
+  { id: 'pelo_punk',  nombre: 'Punk' },
+];
+
+// Tonos de piel y de pelo sugeridos (gratis).
+export const PIELES = ['#F8D9B8', '#F2C9A0', '#E0A875', '#C68642', '#8D5524', '#5C3A21'];
+export const PELO_COLORES = ['#0F0F0F', '#3B2A20', '#6B4423', '#A65E2E', '#C9A227', '#9CA3AF', '#E5E7EB', '#7C3AED', '#DC2626', '#2563EB'];
+
+export const ITEM_DEFAULT = { outfit: 'out_bata', sombrero: 'hat_none', mascota: 'pet_none', escritorio: 'desk_gris', aura: 'aura_none' };
 
 export function itemById(id) { return TIENDA.find((i) => i.id === id) || null; }
 

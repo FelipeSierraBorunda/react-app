@@ -22,7 +22,7 @@ const DICT = {
     'nav.stats': 'Estadísticas', 'nav.addComp': '+ Agregar componente', 'nav.account': 'Mi cuenta',
     'nav.admin': 'Panel administrador', 'nav.croquis': 'Croquis', 'nav.labstats': '📊 Estadísticas',
     'nav.menu': 'Menú', 'nav.toMenu': 'Ir al menú principal',
-    'nav.loans': 'Préstamos', 'nav.audit': 'Auditoría',
+    'nav.loans': 'Préstamos', 'nav.audit': 'Auditoría', 'nav.virtualLab': '🎮 Lab virtual',
 
     'menu.subtitle': 'Selecciona un módulo para empezar.',
     'menu.inventory': 'Inventario', 'menu.inventoryDesc': 'Componentes, vista física y estadísticas del almacén.',
@@ -42,6 +42,11 @@ const DICT = {
     'game.mustCheckin': 'Haz check-in en una mesa para entrar al laboratorio virtual.',
     'game.noEmployee': 'Aún sin datos esta semana.',
     'game.hoursWeek': '{h} h esta semana',
+    'game.desktopOnly': 'El laboratorio virtual solo se juega en computadora o laptop (necesitas teclado para moverte con WASD). Ábrelo desde una compu para entrar.',
+    'game.customize': 'Personalizar', 'game.shopHint': 've a la puerta (OXXO) para comprar',
+    'game.outfits': 'Ropa', 'game.hats': 'Sombreros', 'game.floors': 'Pisos', 'game.auras': 'Auras',
+    'game.free': 'Gratis', 'game.previewHint': 'los cambios se ven al instante',
+    'game.hair': 'Pelo', 'game.hairColor': 'Color de pelo', 'game.skin': 'Tono de piel',
 
     'loan.title': 'Préstamos', 'loan.consumable': 'Consumible', 'loan.loanable': 'Prestable',
     'loan.available': 'Disponible', 'loan.lent': 'Prestado', 'loan.overdue': 'Retrasado',
@@ -65,7 +70,7 @@ const DICT = {
     'nav.stats': 'Statistics', 'nav.addComp': '+ Add component', 'nav.account': 'My account',
     'nav.admin': 'Admin panel', 'nav.croquis': 'Floor plan', 'nav.labstats': '📊 Statistics',
     'nav.menu': 'Menu', 'nav.toMenu': 'Go to main menu',
-    'nav.loans': 'Loans', 'nav.audit': 'Audit log',
+    'nav.loans': 'Loans', 'nav.audit': 'Audit log', 'nav.virtualLab': '🎮 Virtual lab',
 
     'menu.subtitle': 'Pick a module to start.',
     'menu.inventory': 'Inventory', 'menu.inventoryDesc': 'Components, physical view and warehouse stats.',
@@ -85,6 +90,11 @@ const DICT = {
     'game.mustCheckin': 'Check in at a table to enter the virtual lab.',
     'game.noEmployee': 'No data yet this week.',
     'game.hoursWeek': '{h} h this week',
+    'game.desktopOnly': 'The virtual lab is playable only on a computer or laptop (you need a keyboard to move with WASD). Open it on a desktop to enter.',
+    'game.customize': 'Customize', 'game.shopHint': 'walk to the door (OXXO) to shop',
+    'game.outfits': 'Outfits', 'game.hats': 'Hats', 'game.floors': 'Floors', 'game.auras': 'Auras',
+    'game.free': 'Free', 'game.previewHint': 'changes apply instantly',
+    'game.hair': 'Hair', 'game.hairColor': 'Hair color', 'game.skin': 'Skin tone',
 
     'loan.title': 'Loans', 'loan.consumable': 'Consumable', 'loan.loanable': 'Loanable',
     'loan.available': 'Available', 'loan.lent': 'On loan', 'loan.overdue': 'Overdue',

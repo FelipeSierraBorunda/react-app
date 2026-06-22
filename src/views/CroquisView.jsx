@@ -43,15 +43,15 @@ const fmtRange = (a, b) => {
   } catch (e) { return ''; }
 };
 
-export default function CroquisView({ go }) {
+export default function CroquisView({ go, initialMode }) {
   const lab = useLab();
   const { loggedIn, isAdmin } = useAuth();
   const {
     mesas, presentes, presentesPorMesa, reservasActivasPorMesa, reservasProximasPorMesa,
-    miPresencia, totalSillas, ocupadas, lleno, ensureLoaded, refresh, salir, now, presencia,
+    miPresencia, totalSillas, ocupadas, lleno, ensureLoaded, refresh, salir, now,
   } = lab;
 
-  const [mode, setMode] = useState('plano');     // plano | reservar | reservas
+  const [mode, setMode] = useState(initialMode || 'plano');     // plano | reservar | reservas | juego
   const [editMode, setEditMode] = useState(false);
   const [editSel, setEditSel] = useState(null);  // id de mesa seleccionada (edición)
   const [sel, setSel] = useState(null);          // mesa abierta en el modal (vista normal)
@@ -213,7 +213,7 @@ export default function CroquisView({ go }) {
       {mode === 'reservas' && <ReservasList lab={lab} isAdmin={isAdmin} />}
 
       {/* ===================== LABORATORIO VIRTUAL (juego) ===================== */}
-      {mode === 'juego' && <GameView mesas={mesas} presentes={presentes} presencia={presencia} />}
+      {mode === 'juego' && <GameView />}
 
       {selLive && !editMode && <MesaDetailModal mesa={selLive} onClose={() => setSel(null)} go={go} />}
       {info && <InfoModal item={info} onClose={() => setInfo(null)} />}

@@ -21,6 +21,7 @@ import AdminPanel from './views/AdminPanel.jsx';
 import MenuView from './views/MenuView.jsx';
 import CroquisView from './views/CroquisView.jsx';
 import LabStatsView from './views/LabStatsView.jsx';
+import GameView from './views/GameView.jsx';
 import PrestamosView from './views/PrestamosView.jsx';
 import AuditView from './views/AuditView.jsx';
 
@@ -53,6 +54,7 @@ export default function App() {
     menu: <MenuView go={setView} />,
     croquis: <CroquisView go={setView} />,
     labstats: <LabStatsView go={setView} />,
+    juego: <CroquisView go={setView} initialMode="juego" />,
     granja: (
       <div style={{ maxWidth: 520, margin: '40px auto 0', textAlign: 'center', background: '#fff', border: `1px solid ${T.border}`, borderRadius: 16, padding: 36 }}>
         <div style={{ fontSize: 17, fontWeight: 700, color: T.ink, marginBottom: 8 }}>Granja FPGA</div>
