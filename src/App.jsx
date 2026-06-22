@@ -21,6 +21,8 @@ import AdminPanel from './views/AdminPanel.jsx';
 import MenuView from './views/MenuView.jsx';
 import CroquisView from './views/CroquisView.jsx';
 import LabStatsView from './views/LabStatsView.jsx';
+import PrestamosView from './views/PrestamosView.jsx';
+import AuditView from './views/AuditView.jsx';
 
 export default function App() {
   const { ready, loggedIn, invAccess, isAdmin } = useAuth();
@@ -61,6 +63,8 @@ export default function App() {
     visual: invGate(<VisualView go={setView} goEdit={goEdit} requireAuth={requireAuth} />),
     table: invGate(<TableView go={setView} goEdit={goEdit} requireAuth={requireAuth} />),
     stats: invGate(<StatsView />),
+    prestamos: invGate(<PrestamosView go={setView} />),
+    auditoria: invGate(<AuditView />),
     manage: invGate(<ManageView go={setView} editComp={editComp} clearEdit={() => setEditComp(null)} />),
     account: loggedIn ? <AccountView go={setView} /> : <Center>Debes iniciar sesión</Center>,
     admin: loggedIn ? <AdminPanel /> : <Center>Acceso denegado</Center>,

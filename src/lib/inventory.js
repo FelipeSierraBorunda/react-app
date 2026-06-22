@@ -112,6 +112,64 @@ export async function fetchChangelog() {
   return db.select('changelog', { order: 'ts.desc', limit: 500 });
 }
 
+// ---------- auditoría (registro unificado) ----------
+// Log central de acciones. Nunca rompe el flujo si la tabla no existe.
+export async function logAudit(session, { modulo, accion, objeto, detalle }) {
+  const row = {
+    id: uid(),
+    ts: new Date().toISOString(),
+    email: session ? session.email : '',
+    usuario: session ? session.nombre : 'Sistema',
+    modulo: modulo || '',
+    accion: accion || '',
+    objeto: objeto || '',
+    detalle: detalle || '',
+  };
+  try { await db.insert('auditoria', row); } catch (e) { console.error('[inventory] logAudit:', e); }
+  return row;
+}
+
+export async function fetchAuditoria() {
+  try { return await db.select('auditoria', { order: 'ts.desc', limit: 1000 }); }
+  catch (e) { return []; }
+}
+
+// ---------- préstamos (equipo no consumible) ----------
+export async function fetchPrestamos() {
+  try { return await db.select('prestamos', { order: 'desde.desc', limit: 500 }); }
+  catch (e) { return []; }
+}
+
+// Presta un componente: marca el componente y crea el registro histórico.
+export async function lendComponent(comp, { email, nombre, devolverAntes }, session) {
+  const desde = new Date().toISOString();
+  const patch = {
+    prestado_a: email, prestado_nombre: nombre,
+    prestado_desde: desde, devolver_antes: devolverAntes || null,
+  };
+  await db.patch('componentes', 'id', comp.id, patch);
+  const reg = {
+    id: uid(), componente: comp.id, codigo: comp.codigoInterno || '', descripcion: comp.descripcion || '',
+    email, usuario: nombre, por_email: session?.email || '', por_usuario: session?.nombre || '',
+    desde, devolver_antes: devolverAntes || null, hasta: null, estado: 'activo',
+  };
+  try { await db.insert('prestamos', reg); } catch (e) { console.error('[inventory] lend:', e); }
+  return { patch, reg };
+}
+
+// Devuelve un componente: limpia el componente y cierra el registro activo.
+export async function returnComponent(comp, prestamos, session) {
+  const hasta = new Date().toISOString();
+  const patch = { prestado_a: '', prestado_nombre: '', prestado_desde: null, devolver_antes: null };
+  await db.patch('componentes', 'id', comp.id, patch);
+  const activo = (prestamos || []).find((p) => p.componente === comp.id && p.estado === 'activo');
+  if (activo) {
+    try { await db.patch('prestamos', 'id', activo.id, { hasta, estado: 'devuelto' }); }
+    catch (e) { console.error('[inventory] return:', e); }
+  }
+  return { patch, prestamoId: activo ? activo.id : null, hasta };
+}
+
 // ---------- tipos de componente personalizados ----------
 // Viven en la tabla "tipos" de Supabase (compartidos entre todos los
 // usuarios). Si la tabla aún no existe, fetchTipos devuelve [] sin romper.

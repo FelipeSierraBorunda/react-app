@@ -4,15 +4,18 @@ import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { InventoryProvider } from './context/InventoryContext.jsx';
 import { LabProvider } from './context/LabContext.jsx';
+import { LangProvider } from './context/LangContext.jsx';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <AuthProvider>
-      <InventoryProvider>
-        <LabProvider>
-          <App />
-        </LabProvider>
-      </InventoryProvider>
-    </AuthProvider>
+    <LangProvider>
+      <AuthProvider>
+        <InventoryProvider>
+          <LabProvider>
+            <App />
+          </LabProvider>
+        </InventoryProvider>
+      </AuthProvider>
+    </LangProvider>
   </React.StrictMode>
 );

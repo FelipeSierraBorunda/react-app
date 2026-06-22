@@ -25,20 +25,26 @@ export function InventoryProvider({ children }) {
   const [customBoxes, setCustomBoxes] = useState([]);
   const [customTypes, setCustomTypes] = useState([]);
   const [contMesa, setContMesa] = useState({}); // { contenedorId: mesaId }
+  const [prestamos, setPrestamos] = useState([]);
+  const [auditoria, setAuditoria] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [c, u, ch, tp] = await Promise.all([
+      const [c, u, ch, tp, pr, au] = await Promise.all([
         Inv.fetchComponents(),
         Inv.fetchUsage(),
         Inv.fetchChangelog(),
         Inv.fetchTipos(),
+        Inv.fetchPrestamos(),
+        Inv.fetchAuditoria(),
       ]);
       setComps(Array.isArray(c) ? c : []);
       setUsage(u || []);
       setChangelog(ch || []);
       setCustomTypes(Array.isArray(tp) ? tp : []);
+      setPrestamos(Array.isArray(pr) ? pr : []);
+      setAuditoria(Array.isArray(au) ? au : []);
       
       // Restaurar cajas personalizadas desde localStorage
       try {
@@ -55,26 +61,37 @@ export function InventoryProvider({ children }) {
     })();
   }, []);
 
+  // Registra una entrada de auditoría (y la refleja en el estado local).
+  const audit = useCallback(async (entry) => {
+    const row = await Inv.logAudit(session, entry);
+    setAuditoria((prev) => [row, ...prev]);
+  }, [session]);
+
   const add = useCallback(async (data) => {
     const row = await Inv.createComponent(data, comps);
     setComps((prev) => [...prev, row]);
     await Inv.logChange(session, { type: 'agregar', codigo: row.codigoInterno, descripcion: row.descripcion, tipo: row.tipo, cantidad: row.cantidad });
+    audit({ modulo: 'inventario', accion: 'agregar', objeto: row.codigoInterno, detalle: row.descripcion });
     return row;
-  }, [comps, session]);
+  }, [comps, session, audit]);
 
   const edit = useCallback(async (id, patch) => {
     const row = await Inv.updateComponent(id, patch);
     setComps((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
     await Inv.logChange(session, { type: 'modificar', codigo: patch.codigoInterno, descripcion: patch.descripcion, tipo: patch.tipo, cantidad: patch.cantidad });
+    audit({ modulo: 'inventario', accion: 'modificar', objeto: patch.codigoInterno, detalle: patch.descripcion });
     return row;
-  }, [session]);
+  }, [session, audit]);
 
   const remove = useCallback(async (id) => {
     const target = comps.find((c) => c.id === id);
     await Inv.deleteComponent(id);
     setComps((prev) => prev.filter((c) => c.id !== id));
-    if (target) await Inv.logChange(session, { type: 'eliminar', codigo: target.codigoInterno, descripcion: target.descripcion, tipo: target.tipo, cantidad: target.cantidad });
-  }, [comps, session]);
+    if (target) {
+      await Inv.logChange(session, { type: 'eliminar', codigo: target.codigoInterno, descripcion: target.descripcion, tipo: target.tipo, cantidad: target.cantidad });
+      audit({ modulo: 'inventario', accion: 'eliminar', objeto: target.codigoInterno, detalle: target.descripcion });
+    }
+  }, [comps, session, audit]);
 
   // Consumir N unidades de un componente (registra transacción).
   const use = useCallback(async (id, qty) => {
@@ -86,7 +103,34 @@ export function InventoryProvider({ children }) {
     const tx = { type: 'usar', codigo: c.codigoInterno, descripcion: c.descripcion, tipo: c.tipo, cantidad: qty, contenedor: c.contenedor };
     await Inv.logUsage(session, tx);
     setUsage((prev) => [{ ...tx, email: session?.email, usuario: session?.nombre, ts: new Date().toISOString() }, ...prev]);
-  }, [comps, session]);
+    audit({ modulo: 'inventario', accion: 'usar', objeto: c.codigoInterno, detalle: `${qty} × ${c.descripcion}` });
+  }, [comps, session, audit]);
+
+  // ---------- préstamos (equipo no consumible) ----------
+  const lend = useCallback(async (id, { email, nombre, devolverAntes }) => {
+    const c = comps.find((x) => x.id === id);
+    if (!c) return;
+    const { patch, reg } = await Inv.lendComponent(c, { email, nombre, devolverAntes }, session);
+    setComps((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    setPrestamos((prev) => [reg, ...prev]);
+    audit({ modulo: 'prestamo', accion: 'prestar', objeto: c.codigoInterno, detalle: `${c.descripcion} → ${nombre}` });
+  }, [comps, session, audit]);
+
+  const returnLoan = useCallback(async (id) => {
+    const c = comps.find((x) => x.id === id);
+    if (!c) return;
+    const { patch, prestamoId, hasta } = await Inv.returnComponent(c, prestamos, session);
+    setComps((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    if (prestamoId) setPrestamos((prev) => prev.map((p) => (p.id === prestamoId ? { ...p, hasta, estado: 'devuelto' } : p)));
+    audit({ modulo: 'prestamo', accion: 'devolver', objeto: c.codigoInterno, detalle: c.descripcion });
+  }, [comps, prestamos, session, audit]);
+
+  // Estado de un componente prestable: 'disponible' | 'prestado' | 'retrasado'.
+  const loanState = useCallback((c) => {
+    if (!c.prestado_a) return 'disponible';
+    if (c.devolver_antes && new Date(c.devolver_antes) < new Date()) return 'retrasado';
+    return 'prestado';
+  }, []);
 
   // Crear caja personalizada (localStorage)
   const addCustomBox = useCallback((data) => {
@@ -178,6 +222,7 @@ export function InventoryProvider({ children }) {
   }, []);
 
   const value = { comps, usage, changelog, loading, customBoxes, customTypes, tipos, tcMap, add, edit, remove, use, addCustomBox, addTipo, removeTipo, importMany,
+    prestamos, auditoria, audit, lend, returnLoan, loanState,
     allContainers, containerById, esSuelto, generalLocOf, containersInMesa, looseInMesa, contMesa, setContenedorMesa };
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
 }

@@ -16,7 +16,7 @@ import { T } from '../theme.js';
 
 const EMPTY = {
   contenedor: 'G1', cajon: 1, posicion: 1, tipo: 'Resistencia',
-  codigoFabricante: '', codigoInterno: '', descripcion: '', cantidad: 0, espacioOcupado: 'Bajo', notas: '', mesa: '',
+  codigoFabricante: '', codigoInterno: '', descripcion: '', cantidad: 0, espacioOcupado: 'Bajo', notas: '', mesa: '', prestable: false,
 };
 
 export default function ManageView({ go, editComp, clearEdit }) {
@@ -70,7 +70,7 @@ export default function ManageView({ go, editComp, clearEdit }) {
     const base = {
       tipo: form.tipo, codigoFabricante: form.codigoFabricante, descripcion: form.descripcion,
       cantidad: parseInt(form.cantidad, 10) || 0, espacioOcupado: form.espacioOcupado, notas: form.notas,
-      codigoInterno: code, posicion: parseInt(form.posicion, 10) || 1,
+      codigoInterno: code, posicion: parseInt(form.posicion, 10) || 1, prestable: !!form.prestable,
     };
     const payload = ubic === 'suelto'
       ? { ...base, contenedor: '', cajon: 1, mesa: form.mesa }
@@ -185,6 +185,17 @@ export default function ManageView({ go, editComp, clearEdit }) {
           <div style={{ gridColumn: '1/-1' }}>
             <label style={lbl}>Notas</label>
             <input value={form.notas} onChange={set('notas')} placeholder="Encapsulado, tolerancia, observaciones…" style={input} />
+          </div>
+
+          {/* equipo prestable (no consumible) */}
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', border: `1px solid ${form.prestable ? T.primary : T.border}`, borderRadius: 8, background: form.prestable ? T.primarySoft : '#fff', cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!form.prestable} onChange={(e) => setForm((f) => ({ ...f, prestable: e.target.checked }))} style={{ width: 16, height: 16 }} />
+              <span>
+                <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: form.prestable ? T.primary : '#334155' }}>Es equipo prestable (no consumible)</span>
+                <span style={{ display: 'block', fontSize: 11, color: '#94A3B8', marginTop: 2 }}>FPGA, multímetro, osciloscopio… aparece en la sección Préstamos.</span>
+              </span>
+            </label>
           </div>
         </div>
 

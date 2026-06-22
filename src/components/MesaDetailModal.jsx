@@ -60,7 +60,7 @@ export default function MesaDetailModal({ mesa, onClose, go }) {
 
           {/* pestañas */}
           <div style={{ display: 'flex', gap: 4, marginTop: 16, borderBottom: `1px solid ${T.border}` }}>
-            {[['info', 'Detalle'], !esMod && ['reservar', 'Reservar'], loggedIn && ['editar', 'Editar']].filter(Boolean).map(([id, label]) => (
+            {[['info', 'Detalle'], ['almacen', 'Almacenamiento'], !esMod && ['reservar', 'Reservar'], loggedIn && ['editar', 'Editar mesa']].filter(Boolean).map(([id, label]) => (
               <button key={id} onClick={() => { setTab(id); setMsg(null); }} style={{
                 padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
                 color: tab === id ? T.primary : T.muted, borderBottom: `2px solid ${tab === id ? T.primary : 'transparent'}`, marginBottom: -1,
@@ -77,6 +77,9 @@ export default function MesaDetailModal({ mesa, onClose, go }) {
 
           {tab === 'info' && (
             <InfoTab mesa={mesa} esMod={esMod} inv={inv} occ={occ} misReservas={misReservas} onCancel={cancelarReserva} go={go} onClose={onClose} />
+          )}
+          {tab === 'almacen' && (
+            <StorageTab mesa={mesa} inv={inv} go={go} onClose={onClose} />
           )}
           {tab === 'reservar' && !esMod && (
             <ReserveTab mesa={mesa} owner={owner} loggedIn={loggedIn} onReservar={reservar} setMsg={setMsg} />
@@ -105,47 +108,11 @@ export default function MesaDetailModal({ mesa, onClose, go }) {
 
 /* ---------- pestaña Detalle ---------- */
 function InfoTab({ mesa, esMod, inv, occ, misReservas, onCancel, go, onClose }) {
-  const contenedores = inv.containersInMesa(mesa.id);
-  const sueltos = inv.looseInMesa(mesa.id);
-  const irInventario = () => { onClose && onClose(); go && go('table'); };
-  const irVisual = () => { onClose && onClose(); go && go('visual'); };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {mesa.descripcion && (
         <p style={{ fontSize: 13, color: T.inkSoft, lineHeight: 1.5, margin: 0 }}>{mesa.descripcion}</p>
       )}
-
-      {/* almacenamiento aquí */}
-      <Section title="Almacenamiento aquí">
-        {contenedores.length === 0 && sueltos.length === 0 ? (
-          <Empty>No hay sistemas de almacenamiento ni piezas sueltas registradas aquí.</Empty>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-            {contenedores.map((c) => {
-              const n = inv.comps.filter((x) => x.contenedor === c.id).length;
-              return (
-                <button key={c.id} onClick={irVisual} style={storeRow}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14 }}>{c.type === 'gabinete' ? '🗄️' : '📦'}</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>{c.name}</span>
-                  </span>
-                  <span style={{ fontSize: 11.5, color: T.muted }}>{n} comp. · abrir →</span>
-                </button>
-              );
-            })}
-            {sueltos.length > 0 && (
-              <button onClick={irInventario} style={storeRow}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14 }}>🔩</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>Piezas sueltas</span>
-                </span>
-                <span style={{ fontSize: 11.5, color: T.muted }}>{sueltos.length} · ver →</span>
-              </button>
-            )}
-          </div>
-        )}
-      </Section>
 
       {/* objetos / equipo */}
       <Section title="Equipo y objetos">
@@ -196,6 +163,48 @@ function InfoTab({ mesa, esMod, inv, occ, misReservas, onCancel, go, onClose }) 
       )}
 
       {mesa.link && <a href={mesa.link} target="_blank" rel="noreferrer" style={{ fontSize: 13, fontWeight: 600, color: T.primary }}>Abrir enlace →</a>}
+    </div>
+  );
+}
+
+/* ---------- pestaña Almacenamiento ---------- */
+function StorageTab({ mesa, inv, go, onClose }) {
+  const contenedores = inv.containersInMesa(mesa.id);
+  const sueltos = inv.looseInMesa(mesa.id);
+  const irInventario = () => { onClose && onClose(); go && go('table'); };
+  const irVisual = () => { onClose && onClose(); go && go('visual'); };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <Section title="Sistemas de almacenamiento aquí">
+        {contenedores.length === 0 && sueltos.length === 0 ? (
+          <Empty>No hay sistemas de almacenamiento ni piezas sueltas registradas aquí.</Empty>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {contenedores.map((c) => {
+              const n = inv.comps.filter((x) => x.contenedor === c.id).length;
+              return (
+                <button key={c.id} onClick={irVisual} style={storeRow}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 14 }}>{c.type === 'gabinete' ? '🗄️' : '📦'}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>{c.name}</span>
+                  </span>
+                  <span style={{ fontSize: 11.5, color: T.muted }}>{n} comp. · abrir →</span>
+                </button>
+              );
+            })}
+            {sueltos.length > 0 && (
+              <button onClick={irInventario} style={storeRow}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14 }}>🔩</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>Piezas sueltas</span>
+                </span>
+                <span style={{ fontSize: 11.5, color: T.muted }}>{sueltos.length} · ver →</span>
+              </button>
+            )}
+          </div>
+        )}
+      </Section>
     </div>
   );
 }

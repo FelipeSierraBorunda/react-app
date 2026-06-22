@@ -9,8 +9,8 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import * as Lab from '../lib/lab.js';
+import { logAudit } from '../lib/inventory.js';
 import { TOTAL_SILLAS, normalizeMesa, DEFAULT_MODULE_COLOR } from '../lib/lab-layout.js';
-import { notifyReservaCreada, notifyReservaCancelada } from '../lib/notify.js';
 import { useAuth } from './AuthContext.jsx';
 
 const LabContext = createContext(null);
@@ -113,23 +113,28 @@ export function LabProvider({ children }) {
     if (miPresencia) return { ok: false, error: 'Ya estás dentro del laboratorio' };
     const row = await Lab.checkIn(session, mesaId);
     setPresencia((prev) => [row, ...prev]);
+    const mesa = mesas.find((m) => m.id === mesaId);
+    logAudit(session, { modulo: 'lab', accion: 'entrar', objeto: mesa ? mesa.nombre : mesaId, detalle: 'Check-in' });
     return { ok: true };
-  }, [session, miPresencia]);
+  }, [session, miPresencia, mesas]);
 
   const salir = useCallback(async () => {
     if (!miPresencia) return { ok: false, error: 'No tienes una entrada abierta' };
     const row = await Lab.checkOut(miPresencia.id);
     setPresencia((prev) => prev.map((p) => (p.id === miPresencia.id ? { ...p, salida: row?.salida || new Date().toISOString() } : p)));
+    logAudit(session, { modulo: 'lab', accion: 'salir', objeto: miPresencia.mesa || '', detalle: 'Check-out' });
     return { ok: true };
-  }, [miPresencia]);
+  }, [miPresencia, session]);
 
   // Admin: registrar la salida de otra persona que olvidó hacer check-out.
   const forzarSalida = useCallback(async (presenceId) => {
     const row = await Lab.checkOut(presenceId);
     const salida = row?.salida || new Date().toISOString();
+    const p0 = presencia.find((p) => p.id === presenceId);
     setPresencia((prev) => prev.map((p) => (p.id === presenceId ? { ...p, salida } : p)));
+    logAudit(session, { modulo: 'lab', accion: 'salir', objeto: p0 ? p0.nombre : presenceId, detalle: 'Salida forzada (admin)' });
     return { ok: true };
-  }, []);
+  }, [session, presencia]);
 
   // ---------- reservas (con regla dueño/externo) ----------
   const reservar = useCallback(async ({ mesa, inicio, fin }) => {
@@ -151,16 +156,16 @@ export function LabProvider({ children }) {
     }
     const row = await Lab.createReserva({ mesa: mesa.id, session, inicio, fin, esDueno: owner });
     setReservas((prev) => [...prev, row]);
-    // Correos: confirmación (inmediata) + recordatorio (5 min antes).
-    notifyReservaCreada({ reserva: row, mesaNombre: mesa.nombre }).catch((e) => console.warn('[lab] notify:', e));
+    logAudit(session, { modulo: 'lab', accion: 'reservar', objeto: mesa.nombre, detalle: `${new Date(inicio).toLocaleString('es')} – ${new Date(fin).toLocaleString('es')}` });
     return { ok: true, desplazadas: conflictos.filter((c) => !c.es_dueno).length };
   }, [session, reservas, esDueno]);
 
   const cancelarReserva = useCallback(async (id) => {
+    const r0 = reservas.find((r) => r.id === id);
     await Lab.deleteReserva(id);
     setReservas((prev) => prev.filter((r) => r.id !== id));
-    notifyReservaCancelada(id).catch(() => {});
-  }, []);
+    logAudit(session, { modulo: 'lab', accion: 'cancelar', objeto: r0 ? r0.mesa : id, detalle: 'Reserva cancelada' });
+  }, [reservas, session]);
 
   // ---------- edición de mesas (admin) ----------
   // Solo estado local (para el arrastre fluido en el modo edición).

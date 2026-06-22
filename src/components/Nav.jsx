@@ -7,34 +7,38 @@
 
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useLang } from '../context/LangContext.jsx';
 import { T } from '../theme.js';
 
 export default function Nav({ view, setView, onAuth }) {
   const { loggedIn, isAdmin, session, logout } = useAuth();
+  const { t, lang, toggle } = useLang();
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Las pestañas de inventario solo se muestran dentro del módulo de inventario.
-  const inventoryViews = ['visual', 'table', 'stats', 'manage'];
+  const inventoryViews = ['visual', 'table', 'stats', 'prestamos', 'auditoria', 'manage'];
   const inInventory = inventoryViews.includes(view);
   const inCroquis = ['croquis', 'labstats'].includes(view);
 
   const tabs = [];
   if (inInventory) {
     tabs.push(
-      { id: 'visual', label: 'Vista Física' },
-      { id: 'table', label: 'Inventario' },
-      { id: 'stats', label: 'Estadísticas' },
-      { id: 'manage', label: '+ Agregar componente' },
+      { id: 'visual', label: t('nav.physical') },
+      { id: 'table', label: t('nav.inventory') },
+      { id: 'prestamos', label: t('nav.loans') },
+      { id: 'stats', label: t('nav.stats') },
+      { id: 'manage', label: t('nav.addComp') },
     );
+    if (loggedIn && isAdmin) tabs.push({ id: 'auditoria', label: t('nav.audit') });
   }
   if (inCroquis) {
     tabs.push(
-      { id: 'croquis', label: 'Croquis' },
-      { id: 'labstats', label: '📊 Estadísticas' },
+      { id: 'croquis', label: t('nav.croquis') },
+      { id: 'labstats', label: t('nav.labstats') },
     );
   }
-  if (loggedIn) tabs.push({ id: 'account', label: 'Mi cuenta' });
-  if (loggedIn && isAdmin) tabs.push({ id: 'admin', label: 'Panel administrador' });
+  if (loggedIn) tabs.push({ id: 'account', label: t('nav.account') });
+  if (loggedIn && isAdmin) tabs.push({ id: 'admin', label: t('nav.admin') });
 
   const pick = (id) => { setView(id); setMenuOpen(false); };
 
@@ -86,11 +90,15 @@ export default function Nav({ view, setView, onAuth }) {
 
         {loggedIn ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={toggle} title="ES / EN" style={langBtn}>{lang === 'es' ? 'EN' : 'ES'}</button>
             <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{session.nombre}</span>
-            <button onClick={logout} style={ghost}>Salir</button>
+            <button onClick={logout} style={ghost}>{t('common.logout')}</button>
           </div>
         ) : (
-          <button onClick={onAuth} style={ghost}>Iniciar sesión</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={toggle} title="ES / EN" style={langBtn}>{lang === 'es' ? 'EN' : 'ES'}</button>
+            <button onClick={onAuth} style={ghost}>{t('common.login')}</button>
+          </div>
         )}
       </div>
 
@@ -144,4 +152,10 @@ const ghost = {
   padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600,
   fontFamily: T.font, background: 'rgba(255,255,255,0.08)',
   border: '1px solid rgba(255,255,255,0.16)', color: '#fff',
+};
+
+const langBtn = {
+  width: 38, padding: '6px 0', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+  fontFamily: T.font, background: 'rgba(255,255,255,0.08)', letterSpacing: '0.04em',
+  border: '1px solid rgba(255,255,255,0.16)', color: '#fff', flexShrink: 0,
 };

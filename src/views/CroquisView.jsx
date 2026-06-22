@@ -18,6 +18,7 @@ import { STAGE_W, STAGE_H, SEAT, MESA_COLORS, resizeSeats } from '../lib/lab-lay
 import { overlaps, isActiveNow } from '../lib/lab.js';
 import { T, btn } from '../theme.js';
 import { Overlay } from '../components/AuthModal.jsx';
+import GameView from './GameView.jsx';
 import MesaDetailModal from '../components/MesaDetailModal.jsx';
 
 const C = {
@@ -47,7 +48,7 @@ export default function CroquisView({ go }) {
   const { loggedIn, isAdmin } = useAuth();
   const {
     mesas, presentes, presentesPorMesa, reservasActivasPorMesa, reservasProximasPorMesa,
-    miPresencia, totalSillas, ocupadas, lleno, ensureLoaded, refresh, salir, now,
+    miPresencia, totalSillas, ocupadas, lleno, ensureLoaded, refresh, salir, now, presencia,
   } = lab;
 
   const [mode, setMode] = useState('plano');     // plano | reservar | reservas
@@ -138,6 +139,7 @@ export default function CroquisView({ go }) {
         {tabBtn('plano', 'Plano')}
         {tabBtn('reservar', 'Reservar')}
         {tabBtn('reservas', 'Reservas')}
+        {tabBtn('juego', '🎮 Laboratorio virtual')}
         {mode === 'plano' && isAdmin && (
           <button onClick={() => { setEditMode((v) => !v); setEditSel(null); }} style={{
             marginLeft: 'auto', padding: '7px 14px', borderRadius: 8,
@@ -209,6 +211,9 @@ export default function CroquisView({ go }) {
 
       {/* ===================== RESERVAS ===================== */}
       {mode === 'reservas' && <ReservasList lab={lab} isAdmin={isAdmin} />}
+
+      {/* ===================== LABORATORIO VIRTUAL (juego) ===================== */}
+      {mode === 'juego' && <GameView mesas={mesas} presentes={presentes} presencia={presencia} />}
 
       {selLive && !editMode && <MesaDetailModal mesa={selLive} onClose={() => setSel(null)} go={go} />}
       {info && <InfoModal item={info} onClose={() => setInfo(null)} />}

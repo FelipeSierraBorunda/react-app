@@ -8,35 +8,37 @@
 import { useEffect } from 'react';
 import { useLab } from '../context/LabContext.jsx';
 import { useInventory } from '../context/InventoryContext.jsx';
+import { useLang } from '../context/LangContext.jsx';
 import { T } from '../theme.js';
 
 export default function MenuView({ go }) {
   const { comps } = useInventory();
   const { ocupadas, totalSillas, presentes, ensureLoaded } = useLab();
+  const { t } = useLang();
 
   useEffect(() => { ensureLoaded(); }, [ensureLoaded]);
 
   const cards = [
     {
       id: 'inventario', view: 'table', accent: '#2563EB', soft: '#EFF6FF',
-      title: 'Inventario', desc: 'Componentes, vista física y estadísticas del almacén.',
-      stat: `${comps.length} componentes`,
+      title: t('menu.inventory'), desc: t('menu.inventoryDesc'),
+      stat: t('menu.comps', { n: comps.length }),
       icon: (
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg>
       ),
     },
     {
       id: 'croquis', view: 'croquis', accent: '#0D9488', soft: '#F0FDFA',
-      title: 'Croquis & Ocupación', desc: 'Plano del laboratorio, disponibilidad de lugares y reservas.',
-      stat: `${ocupadas}/${totalSillas} ocupados · ${presentes.length} dentro`,
+      title: t('menu.croquis'), desc: t('menu.croquisDesc'),
+      stat: t('menu.occ', { a: ocupadas, b: totalSillas, n: presentes.length }),
       icon: (
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 9h18M9 9v12" stroke="currentColor" stroke-width="1.8"/></svg>
       ),
     },
     {
       id: 'granja', view: 'granja', accent: '#EA580C', soft: '#FFF7ED',
-      title: 'Granja FPGA', desc: 'Acceso a la granja de FPGAs del laboratorio.',
-      stat: 'Enlace por configurar',
+      title: t('menu.farm'), desc: t('menu.farmDesc'),
+      stat: t('menu.farmStat'),
       icon: (
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="5" y="5" width="14" height="14" rx="1.5" stroke="currentColor" stroke-width="1.8"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       ),
@@ -47,7 +49,7 @@ export default function MenuView({ go }) {
     <div style={{ maxWidth: 880, margin: '0 auto' }}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: T.ink, margin: '0 0 6px', letterSpacing: '-0.02em' }}>Lab I&amp;R 4.0</h1>
-        <p style={{ fontSize: 14, color: T.muted, margin: 0 }}>Selecciona un módulo para empezar.</p>
+        <p style={{ fontSize: 14, color: T.muted, margin: 0 }}>{t('menu.subtitle')}</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 18 }}>
