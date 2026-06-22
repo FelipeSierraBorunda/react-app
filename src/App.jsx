@@ -54,7 +54,7 @@ export default function App() {
     menu: <MenuView go={setView} />,
     croquis: <CroquisView go={setView} />,
     labstats: <LabStatsView go={setView} />,
-    juego: <CroquisView go={setView} initialMode="juego" />,
+    juego: loggedIn ? <GameView go={setView} /> : <GameLoginGate onAuth={() => setAuthOpen(true)} go={setView} />,
     granja: (
       <div style={{ maxWidth: 520, margin: '40px auto 0', textAlign: 'center', background: '#fff', border: `1px solid ${T.border}`, borderRadius: 16, padding: 36 }}>
         <div style={{ fontSize: 17, fontWeight: 700, color: T.ink, marginBottom: 8 }}>Granja FPGA</div>
@@ -79,6 +79,23 @@ export default function App() {
         {views[view] || views.visual}
       </main>
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
+    </div>
+  );
+}
+
+// Pantalla mostrada cuando alguien sin sesión intenta abrir el juego.
+function GameLoginGate({ onAuth, go }) {
+  return (
+    <div style={{ maxWidth: 480, margin: '40px auto 0', textAlign: 'center', background: '#fff', border: `1px solid ${T.border}`, borderRadius: 16, padding: 36 }}>
+      <div style={{ width: 52, height: 52, borderRadius: 13, background: '#F5F3FF', color: '#7C3AED', display: 'grid', placeItems: 'center', margin: '0 auto 16px', fontSize: 24 }}>🎮</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: T.ink, marginBottom: 8 }}>El laboratorio: EL JUEGO</div>
+      <p style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.55, margin: '0 0 18px' }}>
+        Necesitas una cuenta para jugar (tu avatar, monedas y progreso se guardan en tu perfil). Inicia sesión o crea una cuenta para entrar.
+      </p>
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+        <button onClick={onAuth} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: T.primary, color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: T.font }}>Iniciar sesión</button>
+        <button onClick={() => go('menu')} style={{ padding: '10px 20px', borderRadius: 8, border: `1px solid ${T.border}`, background: '#fff', color: T.inkSoft, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: T.font }}>← Menú</button>
+      </div>
     </div>
   );
 }

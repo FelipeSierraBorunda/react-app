@@ -49,7 +49,46 @@ export const TIENDA = [
   { id: 'aura_none',   tipo: 'aura', nombre: 'Sin aura',          precio: 0,   color: 'transparent' },
   { id: 'aura_glow',   tipo: 'aura', nombre: 'Aura brillante',    precio: 300, color: '#FACC15' },
   { id: 'aura_ice',    tipo: 'aura', nombre: 'Aura de hielo',     precio: 300, color: '#67E8F9' },
+  // Decoración del escritorio propio (varias a la vez)
+  { id: 'deco_planta', tipo: 'deco', nombre: 'Planta',     precio: 50,  emoji: '🪴' },
+  { id: 'deco_lampara',tipo: 'deco', nombre: 'Lámpara',    precio: 60,  emoji: '💡' },
+  { id: 'deco_taza',   tipo: 'deco', nombre: 'Café',       precio: 40,  emoji: '☕' },
+  { id: 'deco_pc',     tipo: 'deco', nombre: 'Monitor',    precio: 120, emoji: '🖥️' },
+  { id: 'deco_oscilo', tipo: 'deco', nombre: 'Osciloscopio', precio: 160, emoji: '📟' },
+  { id: 'deco_poster', tipo: 'deco', nombre: 'Póster',     precio: 70,  emoji: '🖼️' },
+  { id: 'deco_libro',  tipo: 'deco', nombre: 'Libros',     precio: 45,  emoji: '📚' },
+  { id: 'deco_trofeo', tipo: 'deco', nombre: 'Trofeo',     precio: 140, emoji: '🏆' },
 ];
+
+// La decoración se ACUMULA (no es "equipar"): compras varias y se ven en tu escritorio.
+export const ES_ACUMULABLE = (tipo) => tipo === 'deco';
+
+// ---------- insignias por gasto acumulado ----------
+// Se desbloquean al gastar monedas (ranking de comprador). Solo cosmético/estatus.
+export const INSIGNIAS = [
+  { id: 'ins_0',    min: 0,    nombre: 'Novato',       emoji: '🌱', color: '#94A3B8' },
+  { id: 'ins_100',  min: 100,  nombre: 'Comprador',    emoji: '🛒', color: '#10B981' },
+  { id: 'ins_300',  min: 300,  nombre: 'Coleccionista',emoji: '💎', color: '#0EA5E9' },
+  { id: 'ins_600',  min: 600,  nombre: 'Élite',        emoji: '⭐', color: '#8B5CF6' },
+  { id: 'ins_1000', min: 1000, nombre: 'Leyenda',      emoji: '👑', color: '#F59E0B' },
+];
+export function insigniaDe(gastado) {
+  let cur = INSIGNIAS[0];
+  for (const i of INSIGNIAS) if ((gastado || 0) >= i.min) cur = i;
+  return cur;
+}
+export function siguienteInsignia(gastado) {
+  return INSIGNIAS.find((i) => i.min > (gastado || 0)) || null;
+}
+
+// ---------- premio de empleado de la semana ----------
+export const PREMIO_EMPLEADO_MONEDAS = 100;
+export const PREMIO_EMPLEADO_ITEM = 'aura_glow'; // aura exclusiva gratis esa semana
+// Identificador de semana ISO-ish (lunes) para no premiar dos veces.
+export function semanaId(d = new Date()) {
+  const x = startOfWeek(d);
+  return `${x.getFullYear()}-W${String(Math.ceil(((x - new Date(x.getFullYear(), 0, 1)) / 86400000 + 1) / 7)).padStart(2, '0')}`;
+}
 
 export const EQUIPADO_DEFAULT = {
   outfit: 'out_bata', sombrero: 'hat_none', mascota: 'pet_none', escritorio: 'desk_gris', aura: 'aura_none',
@@ -133,4 +172,60 @@ export function startOfWeek(d) {
   x.setHours(0, 0, 0, 0);
   x.setDate(x.getDate() - day);
   return x;
+}
+
+// =====================================================================
+// QUIZ colaborativo — preguntas creadas por usuarios, 3 opciones, 24 h,
+// una respuesta por usuario. Respuesta correcta = monedas.
+// =====================================================================
+export const QUIZ_PREMIO = 15;        // monedas por acierto
+export const QUIZ_VIDA_H = 24;        // horas que vive una pregunta
+
+export async function fetchQuiz() {
+  try {
+    const [preguntas, respuestas] = await Promise.all([
+      db.select('quiz_preguntas', { order: 'creado.desc', limit: 300 }),
+      db.select('quiz_respuestas', { limit: 2000 }),
+    ]);
+    return { preguntas: preguntas || [], respuestas: respuestas || [] };
+  } catch (e) {
+    console.error('[game] fetchQuiz:', e);
+    return { preguntas: [], respuestas: [] };
+  }
+}
+
+export function quizActivas(preguntas, now = new Date()) {
+  return (preguntas || []).filter((p) => new Date(p.expira) > now);
+}
+
+export async function crearPregunta(session, { texto, opciones, correcta, premio }) {
+  const ahora = new Date();
+  const row = {
+    id: uid(),
+    autor_email: session?.email || '',
+    autor_nombre: session?.nombre || '',
+    texto: (texto || '').trim(),
+    opciones,
+    correcta,
+    premio: premio || QUIZ_PREMIO,
+    creado: ahora.toISOString(),
+    expira: new Date(ahora.getTime() + QUIZ_VIDA_H * 3600 * 1000).toISOString(),
+  };
+  try { await db.insert('quiz_preguntas', row); } catch (e) { console.error('[game] crearPregunta:', e); }
+  return row;
+}
+
+export async function responderPregunta(session, pregunta, opcion) {
+  const correcta = opcion === pregunta.correcta;
+  const row = {
+    id: uid(), pregunta: pregunta.id, email: session?.email || '', nombre: session?.nombre || '',
+    opcion, correcta, ts: new Date().toISOString(),
+  };
+  try { await db.insert('quiz_respuestas', row); } catch (e) { console.error('[game] responder:', e); }
+  return row;
+}
+
+// uid local (mismo formato corto que el resto del proyecto).
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 }

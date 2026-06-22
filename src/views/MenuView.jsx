@@ -43,6 +43,14 @@ export default function MenuView({ go }) {
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="5" y="5" width="14" height="14" rx="1.5" stroke="currentColor" stroke-width="1.8"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       ),
     },
+    {
+      id: 'juego', view: 'juego', accent: '#7C3AED', soft: '#F5F3FF',
+      title: t('menu.game'), desc: t('menu.gameDesc'),
+      stat: t('menu.gameStat'),
+      icon: (
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="2" y="6" width="20" height="12" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M7 10v4M5 12h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16" cy="11" r="1.3" fill="currentColor"/><circle cx="18.5" cy="13.5" r="1.3" fill="currentColor"/></svg>
+      ),
+    },
   ];
 
   return (

@@ -18,7 +18,6 @@ import { STAGE_W, STAGE_H, SEAT, MESA_COLORS, resizeSeats } from '../lib/lab-lay
 import { overlaps, isActiveNow } from '../lib/lab.js';
 import { T, btn } from '../theme.js';
 import { Overlay } from '../components/AuthModal.jsx';
-import GameView from './GameView.jsx';
 import MesaDetailModal from '../components/MesaDetailModal.jsx';
 
 const C = {
@@ -43,7 +42,7 @@ const fmtRange = (a, b) => {
   } catch (e) { return ''; }
 };
 
-export default function CroquisView({ go, initialMode }) {
+export default function CroquisView({ go }) {
   const lab = useLab();
   const { loggedIn, isAdmin } = useAuth();
   const {
@@ -51,7 +50,7 @@ export default function CroquisView({ go, initialMode }) {
     miPresencia, totalSillas, ocupadas, lleno, ensureLoaded, refresh, salir, now,
   } = lab;
 
-  const [mode, setMode] = useState(initialMode || 'plano');     // plano | reservar | reservas | juego
+  const [mode, setMode] = useState('plano');     // plano | reservar | reservas
   const [editMode, setEditMode] = useState(false);
   const [editSel, setEditSel] = useState(null);  // id de mesa seleccionada (edición)
   const [sel, setSel] = useState(null);          // mesa abierta en el modal (vista normal)
@@ -139,7 +138,6 @@ export default function CroquisView({ go, initialMode }) {
         {tabBtn('plano', 'Plano')}
         {tabBtn('reservar', 'Reservar')}
         {tabBtn('reservas', 'Reservas')}
-        {tabBtn('juego', '🎮 Laboratorio virtual')}
         {mode === 'plano' && isAdmin && (
           <button onClick={() => { setEditMode((v) => !v); setEditSel(null); }} style={{
             marginLeft: 'auto', padding: '7px 14px', borderRadius: 8,
@@ -211,9 +209,6 @@ export default function CroquisView({ go, initialMode }) {
 
       {/* ===================== RESERVAS ===================== */}
       {mode === 'reservas' && <ReservasList lab={lab} isAdmin={isAdmin} />}
-
-      {/* ===================== LABORATORIO VIRTUAL (juego) ===================== */}
-      {mode === 'juego' && <GameView />}
 
       {selLive && !editMode && <MesaDetailModal mesa={selLive} onClose={() => setSel(null)} go={go} />}
       {info && <InfoModal item={info} onClose={() => setInfo(null)} />}
