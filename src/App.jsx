@@ -69,7 +69,7 @@ export default function App() {
     auditoria: invGate(<AuditView />),
     manage: invGate(<ManageView go={setView} editComp={editComp} clearEdit={() => setEditComp(null)} />),
     account: loggedIn ? <AccountView go={setView} /> : <Center>Debes iniciar sesión</Center>,
-    admin: loggedIn ? <AdminPanel /> : <Center>Acceso denegado</Center>,
+    admin: (loggedIn && isAdmin) ? <AdminPanel /> : <Center>Acceso denegado</Center>,
   };
 
   return (

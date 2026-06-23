@@ -16,18 +16,34 @@ import { T, card } from '../theme.js';
 import ComponentDetailModal from '../components/ComponentDetailModal.jsx';
 
 export default function TableView({ go, goEdit, requireAuth }) {
-  const { comps, use, remove, edit, tipos, tcMap, generalLocOf, esSuelto } = useInventory();
+  const { comps, use, remove, edit, tipos, tcMap, generalLocOf, esSuelto, changelog, auditoria } = useInventory();
   const { loggedIn } = useAuth();
   const { mesas } = useLab();
   const mesaNombre = (id) => { const m = mesas.find((x) => x.id === id); return m ? m.nombre : null; };
   const [filters, setFilters] = useState({ tipo: '', cont: '', q: '' });
   const [sort, setSort] = useState({ col: 'codigoInterno', dir: 'asc' });
+  const [recientes, setRecientes] = useState(false);
   const [detail, setDetail] = useState(null);
 
+  // Código → fecha de alta (último evento 'agregar' en auditoría + changelog).
+  const addedAt = useMemo(() => {
+    const m = {};
+    const consider = (codigo, ts) => {
+      if (!codigo) return;
+      const v = new Date(ts).getTime();
+      if (!m[codigo] || v > m[codigo]) m[codigo] = v;
+    };
+    (auditoria || []).forEach((a) => { if (a.accion === 'agregar') consider(a.objeto, a.ts); });
+    (changelog || []).forEach((c) => { if (c.type === 'agregar') consider(c.codigo, c.ts); });
+    return m;
+  }, [auditoria, changelog]);
+
   const rows = useMemo(() => {
+    const limite = Date.now() - 7 * 24 * 60 * 60 * 1000;
     let r = comps.filter((c) => {
       if (filters.tipo && c.tipo !== filters.tipo) return false;
       if (filters.cont && c.contenedor !== filters.cont) return false;
+      if (recientes && !((addedAt[c.codigoInterno] || 0) >= limite)) return false;
       if (filters.q) {
         const q = filters.q.toLowerCase();
         const hay = [c.codigoInterno, c.codigoFabricante, c.descripcion, c.tipo]
@@ -36,6 +52,10 @@ export default function TableView({ go, goEdit, requireAuth }) {
       }
       return true;
     });
+    if (recientes) {
+      r = [...r].sort((a, b) => (addedAt[b.codigoInterno] || 0) - (addedAt[a.codigoInterno] || 0));
+      return r;
+    }
     const { col, dir } = sort;
     r = [...r].sort((a, b) => {
       const av = a[col], bv = b[col];
@@ -45,7 +65,7 @@ export default function TableView({ go, goEdit, requireAuth }) {
       return dir === 'asc' ? n : -n;
     });
     return r;
-  }, [comps, filters, sort]);
+  }, [comps, filters, sort, recientes, addedAt]);
 
   const sortBy = (col) =>
     setSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }));
@@ -71,6 +91,10 @@ export default function TableView({ go, goEdit, requireAuth }) {
           <option value="">Todos los contenedores</option>
           {CONTAINERS.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+        <button
+          onClick={() => setRecientes((v) => !v)}
+          style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, fontFamily: T.font, cursor: 'pointer', border: `1px solid ${recientes ? T.primary : T.border}`, background: recientes ? T.primarySoft : '#fff', color: recientes ? T.primary : '#475569' }}
+        >🕒 Recientes</button>
       </div>
 
       {/* Tabla */}

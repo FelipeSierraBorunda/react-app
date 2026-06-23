@@ -31,13 +31,20 @@ const DICT = {
     'menu.farmStat': 'Enlace por configurar',
     'menu.game': 'El laboratorio: EL JUEGO', 'menu.gameDesc': 'Explora el lab con tu avatar, gana monedas, personaliza y responde el quiz. Requiere cuenta y computadora.', 'menu.gameStat': '🎮 Requiere cuenta',
     'menu.comps': '{n} componentes', 'menu.occ': '{a}/{b} ocupados · {n} dentro',
+    'menu.admin': 'Panel administrativo', 'menu.adminDesc': 'Acceso al inventario, auditoría, tipos de componente y respaldo del sistema.', 'menu.adminStat': '🛡️ Solo administradores',
+
+    'admin.title': 'Panel administrativo', 'admin.tabUsers': 'Usuarios y registro', 'admin.tabAudit': 'Auditoría',
+    'admin.tabTypes': 'Tipos de componente', 'admin.tabBackup': 'Respaldo',
+
+    'account.avatar': 'Mi avatar', 'account.avatarHint': 'Personaliza cómo te ven en el laboratorio virtual. Se guarda en tu perfil.',
+    'account.body': 'Cuerpo y rostro', 'account.equipOwned': 'Equipar (lo que ya tienes)', 'account.getMore': 'Consigue más en el OXXO del juego.',
 
     'croquis.map': 'Plano', 'croquis.reservations': 'Reservas', 'croquis.game': 'Laboratorio virtual',
     'croquis.editPlan': 'Editar plano', 'croquis.exitEdit': 'Salir de edición',
 
     'game.title': 'El laboratorio: EL JUEGO', 'game.coins': '{n} monedas', 'game.shop': 'Tienda',
     'game.pets': 'Mascotas', 'game.employee': 'Empleado de la semana', 'game.move': 'Muévete con WASD',
-    'game.you': 'Tú', 'game.buy': 'Comprar', 'game.owned': 'Adquirido', 'game.equip': 'Equipar',
+    'game.you': 'Tú', 'game.buy': 'Comprar', 'game.owned': 'Adquirido', 'game.equip': 'Equipar', 'game.lounge': 'Descanso',
     'game.equipped': 'Equipado', 'game.notEnough': 'Monedas insuficientes',
     'game.earnHint': 'Ganas 10 monedas por cada 30 min dentro del laboratorio.',
     'game.mustCheckin': 'Haz check-in en una mesa para entrar al laboratorio virtual.',
@@ -67,6 +74,7 @@ const DICT = {
 
     'audit.title': 'Auditoría', 'audit.who': 'Quién', 'audit.action': 'Acción',
     'audit.detail': 'Detalle', 'audit.when': 'Cuándo', 'audit.empty': 'Sin registros todavía.',
+    'audit.where': 'Dónde', 'audit.recent': 'Recientes (7 d)',
     'audit.all': 'Todas las acciones',
   },
   en: {
@@ -89,13 +97,20 @@ const DICT = {
     'menu.farmStat': 'Link to configure',
     'menu.game': 'The Lab: THE GAME', 'menu.gameDesc': 'Explore the lab with your avatar, earn coins, customize and take the quiz. Requires an account and a computer.', 'menu.gameStat': '🎮 Account required',
     'menu.comps': '{n} components', 'menu.occ': '{a}/{b} occupied · {n} inside',
+    'menu.admin': 'Admin panel', 'menu.adminDesc': 'Inventory access, audit log, component types and system backup.', 'menu.adminStat': '🛡️ Admins only',
+
+    'admin.title': 'Admin panel', 'admin.tabUsers': 'Users & log', 'admin.tabAudit': 'Audit log',
+    'admin.tabTypes': 'Component types', 'admin.tabBackup': 'Backup',
+
+    'account.avatar': 'My avatar', 'account.avatarHint': 'Customize how others see you in the virtual lab. Saved to your profile.',
+    'account.body': 'Body & face', 'account.equipOwned': 'Equip (what you own)', 'account.getMore': 'Get more at the in-game OXXO.',
 
     'croquis.map': 'Map', 'croquis.reservations': 'Reservations', 'croquis.game': 'Virtual lab',
     'croquis.editPlan': 'Edit plan', 'croquis.exitEdit': 'Exit edit mode',
 
     'game.title': 'The Lab: THE GAME', 'game.coins': '{n} coins', 'game.shop': 'Shop',
     'game.pets': 'Pets', 'game.employee': 'Employee of the week', 'game.move': 'Move with WASD',
-    'game.you': 'You', 'game.buy': 'Buy', 'game.owned': 'Owned', 'game.equip': 'Equip',
+    'game.you': 'You', 'game.buy': 'Buy', 'game.owned': 'Owned', 'game.equip': 'Equip', 'game.lounge': 'Lounge',
     'game.equipped': 'Equipped', 'game.notEnough': 'Not enough coins',
     'game.earnHint': 'Earn 10 coins for every 30 min inside the lab.',
     'game.mustCheckin': 'Check in at a table to enter the virtual lab.',
@@ -125,6 +140,7 @@ const DICT = {
 
     'audit.title': 'Audit log', 'audit.who': 'Who', 'audit.action': 'Action',
     'audit.detail': 'Detail', 'audit.when': 'When', 'audit.empty': 'No records yet.',
+    'audit.where': 'Where', 'audit.recent': 'Recent (7d)',
     'audit.all': 'All actions',
   },
 };

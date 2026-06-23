@@ -29,7 +29,6 @@ export default function Nav({ view, setView, onAuth }) {
       { id: 'stats', label: t('nav.stats') },
       { id: 'manage', label: t('nav.addComp') },
     );
-    if (loggedIn && isAdmin) tabs.push({ id: 'auditoria', label: t('nav.audit') });
   }
   if (inCroquis) {
     tabs.push(
@@ -37,8 +36,12 @@ export default function Nav({ view, setView, onAuth }) {
       { id: 'labstats', label: t('nav.labstats') },
     );
   }
-  if (loggedIn) tabs.push({ id: 'account', label: t('nav.account') });
-  if (loggedIn && isAdmin) tabs.push({ id: 'admin', label: t('nav.admin') });
+
+  // Pestañas que solo viven en el menú móvil (en escritorio se llega por el
+  // nombre de usuario / la tarjeta del menú principal).
+  const personalTabs = [];
+  if (loggedIn) personalTabs.push({ id: 'account', label: t('nav.account') });
+  if (loggedIn && isAdmin) personalTabs.push({ id: 'admin', label: t('nav.admin') });
 
   const pick = (id) => { setView(id); setMenuOpen(false); };
 
@@ -91,7 +94,21 @@ export default function Nav({ view, setView, onAuth }) {
         {loggedIn ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button onClick={toggle} title="ES / EN" style={langBtn}>{lang === 'es' ? 'EN' : 'ES'}</button>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{session.nombre}</span>
+            <button
+              onClick={() => setView('account')}
+              title={t('nav.account')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7, padding: '5px 12px 5px 6px', borderRadius: 999,
+                cursor: 'pointer', fontFamily: T.font,
+                background: view === 'account' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.16)',
+              }}
+            >
+              <span style={{ width: 24, height: 24, borderRadius: '50%', background: T.primary, color: '#fff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {(session.nombre || '?').trim().charAt(0).toUpperCase()}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#fff', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(session.nombre || '').split(' ')[0]}</span>
+            </button>
             <button onClick={logout} style={ghost}>{t('common.logout')}</button>
           </div>
         ) : (
@@ -128,6 +145,23 @@ export default function Nav({ view, setView, onAuth }) {
               ← Menú principal
             </button>
             {tabs.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => pick(t.id)}
+                style={{
+                  padding: '12px 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                  fontSize: 15, fontWeight: 600, fontFamily: T.font, textAlign: 'left',
+                  background: view === t.id ? 'rgba(255,255,255,0.14)' : 'transparent',
+                  color: view === t.id ? '#fff' : 'rgba(255,255,255,0.7)',
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+            {personalTabs.length > 0 && (
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.12)', margin: '8px 4px' }} />
+            )}
+            {personalTabs.map((t) => (
               <button
                 key={t.id}
                 onClick={() => pick(t.id)}

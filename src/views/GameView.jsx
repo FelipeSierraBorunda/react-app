@@ -23,9 +23,12 @@ import {
   fetchQuiz, quizActivas, crearPregunta, responderPregunta, QUIZ_PREMIO,
 } from '../lib/game.js';
 import { T } from '../theme.js';
+import { Avatar, Pet, sleeperLook } from '../components/Avatar.jsx';
 
 const STEP = 9, AV = 30;
 const DOOR = { x: STAGE_W - 40, y: 14, w: 40, h: 96 }; // zona OXXO (pared derecha)
+const REST = { x: 92, y: 332, w: 128, h: 96 };           // zona de descanso (sofá)
+const SPAWN = { x: REST.x + REST.w / 2, y: REST.y + REST.h - 24 };
 const BASE_OWNED = ['out_bata', 'hat_none', 'pet_none', 'desk_gris', 'aura_none'];
 
 // Mapa de módulo (kind) → vista destino de la app.
@@ -180,12 +183,13 @@ export default function GameView({ go }) {
   }
 
   // ---------- avatar WASD + animación ----------
-  const [pos, setPos] = useState({ x: STAGE_W / 2, y: STAGE_H - 40 });
-  const [dir, setDir] = useState('down');
+  const [pos, setPos] = useState(SPAWN);
+  const [dir, setDir] = useState('up');
   const [moving, setMoving] = useState(false);
+  const [sitting, setSitting] = useState(true);
   const [phase, setPhase] = useState(0);
   const keys = useRef({});
-  const posRef = useRef({ x: STAGE_W / 2, y: STAGE_H - 40 });
+  const posRef = useRef(SPAWN);
   const nearRef = useRef(null);
   const atDoorRef = useRef(false);
   const obstaculos = useMemo(() => (mesas || []).filter((m) => m && typeof m.x === 'number'), [mesas]);
@@ -225,6 +229,7 @@ export default function GameView({ go }) {
       if (k['d'] || k['arrowright']) dx += STEP;
       if (!dx && !dy) { setMoving(false); return; }
       setMoving(true);
+      setSitting(false);
       setPhase((p) => (p + 1) % 4);
       setDir(dy < 0 ? 'up' : dy > 0 ? 'down' : dx < 0 ? 'left' : 'right');
       const p = posRef.current;
@@ -327,11 +332,13 @@ export default function GameView({ go }) {
       <div ref={useScaleToWidth(STAGE_W)} style={{ position: 'relative', margin: '0 auto' }}>
         <div style={{
           position: 'absolute', top: 0, left: 0, width: STAGE_W, height: STAGE_H, transformOrigin: 'top left',
-          borderRadius: 6, border: '3px solid #CBD5E1', backgroundColor: '#F4F6FA', overflow: 'hidden',
-          backgroundImage: 'linear-gradient(#EAEEF4 1px,transparent 1px),linear-gradient(90deg,#EAEEF4 1px,transparent 1px)',
-          backgroundSize: '32px 32px',
+          borderRadius: 4, border: '5px solid #9A8C73', backgroundColor: '#E9E1D2', overflow: 'hidden',
+          backgroundImage: 'linear-gradient(45deg, rgba(120,100,70,0.07) 25%, transparent 25%, transparent 75%, rgba(120,100,70,0.07) 75%), linear-gradient(45deg, rgba(120,100,70,0.07) 25%, transparent 25%, transparent 75%, rgba(120,100,70,0.07) 75%)',
+          backgroundSize: '44px 44px, 44px 44px',
+          backgroundPosition: '0 0, 22px 22px',
+          boxShadow: 'inset 0 0 0 4px rgba(255,255,255,0.4), inset 0 0 46px rgba(80,60,30,0.16)',
         }}>
-          <div style={{ position: 'absolute', inset: 0, background: deskFloor.color, opacity: 0.12, pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', inset: 0, background: deskFloor.color, opacity: 0.1, pointerEvents: 'none' }} />
 
           {/* OXXO */}
           <div style={{ position: 'absolute', left: DOOR.x, top: DOOR.y, width: DOOR.w, height: DOOR.h, background: '#DA291C', borderRadius: '6px 0 0 6px', border: '2px solid #B71C12', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 0 0 3px #FFC72C' }}>
@@ -347,6 +354,16 @@ export default function GameView({ go }) {
               </div>
             </div>
           )}
+
+          {/* zona de descanso (sofá) */}
+          <div style={{ position: 'absolute', left: REST.x, top: REST.y, width: REST.w, height: REST.h, borderRadius: 16, background: 'radial-gradient(circle at 50% 38%, #DCCDEC, #C7B4DE)', border: '3px solid rgba(124,58,237,0.28)', boxShadow: 'inset 0 0 0 3px rgba(255,255,255,0.4)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 8 }}>
+            <span style={{ position: 'absolute', top: 6, left: '50%', transform: 'translateX(-50%)', fontSize: 8.5, fontWeight: 900, color: 'rgba(76,29,149,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>☕ {t('game.lounge')}</span>
+            <span style={{ position: 'absolute', top: 5, right: 8, fontSize: 15 }}>🪴</span>
+            <div style={{ width: REST.w - 30, height: 22, background: '#7C6FA6', borderRadius: '9px 9px 5px 5px', border: '2px solid #564B82', boxShadow: 'inset 0 4px 0 rgba(255,255,255,0.2), inset 0 -4px 0 rgba(0,0,0,0.2)', position: 'relative' }}>
+              <span style={{ position: 'absolute', top: 3, bottom: 5, left: '34%', width: 2, background: 'rgba(0,0,0,0.14)' }} />
+              <span style={{ position: 'absolute', top: 3, bottom: 5, left: '66%', width: 2, background: 'rgba(0,0,0,0.14)' }} />
+            </div>
+          </div>
 
           {/* mobiliario */}
           {(mesas || []).map((m) => <Furniture key={m.id} m={m} highlight={nearModule && nearModule.id === m.id} />)}
@@ -380,8 +397,8 @@ export default function GameView({ go }) {
           )}
 
           {/* jugador */}
-          <div style={{ position: 'absolute', left: pos.x - AV / 2, top: pos.y - AV / 2 - 10, zIndex: 6 }}>
-            <Avatar look={look} dir={dir} moving={moving} phase={phase} name={session ? (nombreDe ? nombreDe(session.email) : session.nombre) : t('game.you')} you />
+          <div style={{ position: 'absolute', left: pos.x - AV / 2, top: pos.y - AV / 2 - 10, zIndex: 6, transition: moving ? 'none' : 'left .12s, top .12s' }}>
+            <Avatar look={look} dir={dir} moving={moving} sitting={sitting} phase={phase} name={session ? (nombreDe ? nombreDe(session.email) : session.nombre) : t('game.you')} you />
           </div>
         </div>
       </div>
@@ -405,103 +422,54 @@ export default function GameView({ go }) {
 /* ---------- mobiliario ---------- */
 function Furniture({ m, highlight }) {
   const esMesa = m.kind === 'mesa';
-  const fill = esMesa ? (m.color && m.color !== '#ffffff' ? m.color : '#D8C19A') : (m.color || '#94A3B8');
   const isL = m.forma === 'L';
   const icon = !esMesa ? ({ granja: '🌾', brazo: '🦾', inventario: '📦', almacen: '🗄️' }[m.kind] || '⬛') : null;
+
+  if (esMesa) {
+    const wood = (m.color && m.color !== '#ffffff') ? m.color : '#C8A878';
+    return (
+      <div title={m.nombre} style={{
+        position: 'absolute', left: m.x, top: m.y, width: m.w, height: m.h,
+        background: wood, borderRadius: 5,
+        border: `2px solid ${highlight ? '#0F172A' : 'rgba(70,45,20,0.45)'}`,
+        backgroundImage: 'repeating-linear-gradient(90deg, rgba(90,55,20,0.10) 0 2px, transparent 2px 13px), linear-gradient(180deg, rgba(255,255,255,0.28), rgba(0,0,0,0.06))',
+        boxShadow: highlight ? '0 0 0 3px rgba(15,23,42,0.25), 0 4px 0 rgba(70,45,20,0.3)' : 'inset 0 2px 0 rgba(255,255,255,0.3), 0 4px 0 rgba(70,45,20,0.3)',
+        display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', justifyContent: 'center',
+        clipPath: isL ? 'polygon(0 0, 62% 0, 62% 55%, 100% 55%, 100% 100%, 0 100%)' : 'none',
+      }}>
+        {m.pc && (
+          <div style={{ position: 'absolute', top: 4, right: 5, width: 18, height: 13, background: '#1E293B', borderRadius: 2, border: '1.5px solid #0F172A', boxShadow: 'inset 0 0 0 2px #38BDF8' }}>
+            <span style={{ position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)', width: 8, height: 3, background: '#334155', borderRadius: '0 0 2px 2px' }} />
+          </div>
+        )}
+        <span style={{ fontSize: 10, fontWeight: 800, color: 'rgba(50,30,10,0.7)', textShadow: '0 1px 0 rgba(255,255,255,0.45)', pointerEvents: 'none', padding: 2, textAlign: 'center' }}>{m.nombre}</span>
+      </div>
+    );
+  }
+
+  // módulo (zona no-mesa)
+  const fill = m.color || '#94A3B8';
   return (
     <div title={m.nombre} style={{
       position: 'absolute', left: m.x, top: m.y, width: m.w, height: m.h,
-      background: fill, border: `2px solid ${highlight ? '#0F172A' : 'rgba(15,23,42,0.4)'}`, borderRadius: esMesa ? 5 : 4,
-      boxShadow: highlight ? '0 0 0 3px rgba(15,23,42,0.25), inset 0 -5px 0 rgba(0,0,0,0.14)' : 'inset 0 -5px 0 rgba(0,0,0,0.14), 0 3px 0 rgba(15,23,42,0.18)',
+      background: fill, border: `2px solid ${highlight ? '#0F172A' : 'rgba(15,23,42,0.45)'}`, borderRadius: 4,
+      backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.22), rgba(0,0,0,0.14))',
+      boxShadow: highlight ? '0 0 0 3px rgba(15,23,42,0.25), inset 0 -5px 0 rgba(0,0,0,0.18)' : 'inset 0 -5px 0 rgba(0,0,0,0.18), 0 3px 0 rgba(15,23,42,0.2)',
       display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', justifyContent: 'center',
-      clipPath: isL ? 'polygon(0 0, 62% 0, 62% 55%, 100% 55%, 100% 100%, 0 100%)' : 'none',
     }}>
-      {icon && <span style={{ fontSize: 16, lineHeight: 1 }}>{icon}</span>}
-      <span style={{ fontSize: 10, fontWeight: 800, color: esMesa ? 'rgba(15,23,42,0.62)' : 'rgba(255,255,255,0.95)', textShadow: esMesa ? '0 1px 0 rgba(255,255,255,0.4)' : '0 1px 1px rgba(0,0,0,0.3)', pointerEvents: 'none', padding: 2, textAlign: 'center' }}>{m.nombre}</span>
+      <span style={{ fontSize: 16, lineHeight: 1 }}>{icon}</span>
+      <span style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,0.96)', textShadow: '0 1px 1px rgba(0,0,0,0.35)', pointerEvents: 'none', padding: 2, textAlign: 'center' }}>{m.nombre}</span>
     </div>
   );
 }
 
 function Chair() {
-  return <div style={{ width: SEAT, height: SEAT, borderRadius: '50%', background: '#475569', border: '2px solid #1E293B', boxShadow: 'inset 0 -3px 0 rgba(0,0,0,0.2)' }} />;
-}
-
-/* ---------- avatar por capas ---------- */
-function Avatar({ look, dir = 'down', name, sleeping, sitting, moving, phase = 0, you }) {
-  const piel = look.piel || '#F2C9A0';
-  const peloColor = look.peloColor || '#3B2A20';
-  const outfit = look.outfit || { color: '#E5E7EB', acento: '#94A3B8' };
-  const eyeX = dir === 'left' ? 3 : dir === 'right' ? 7 : 5;
-  // piernas: alterna según fase al caminar
-  const swing = moving ? (phase === 1 ? 3 : phase === 3 ? -3 : 0) : 0;
   return (
-    <div style={{ width: AV, position: 'relative', textAlign: 'center', animation: you && !moving ? 'gv-bob 1.5s ease-in-out infinite' : 'none' }}>
-      {look.aura && look.aura.color !== 'transparent' && (
-        <div style={{ position: 'absolute', left: '50%', top: 12, transform: 'translateX(-50%)', width: 30, height: 30, borderRadius: '50%', background: look.aura.color, filter: 'blur(5px)', opacity: 0.6, animation: 'gv-aura 1.8s ease-in-out infinite' }} />
-      )}
-      {sleeping && <span style={{ position: 'absolute', top: -12, right: -2, fontSize: 11, animation: 'gv-z 1.8s ease-in-out infinite', zIndex: 3 }}>💤</span>}
-      <div style={{ position: 'absolute', bottom: -2, left: '50%', transform: 'translateX(-50%)', width: 20, height: 5, background: 'rgba(15,23,42,0.22)', borderRadius: '50%' }} />
-
-      {look.sombrero && look.sombrero.color !== 'transparent' && <Hat item={look.sombrero} />}
-      <Hair style={look.pelo} color={peloColor} />
-      <div style={{ position: 'relative', width: 16, height: 14, background: piel, border: '2px solid #11203a', borderRadius: 6, margin: '-2px auto 0', zIndex: 2 }}>
-        {!sleeping ? (
-          <>
-            <span style={{ position: 'absolute', top: 5, left: eyeX, width: 2.4, height: 2.4, background: '#11203a', borderRadius: '50%' }} />
-            <span style={{ position: 'absolute', top: 5, left: eyeX + 4.5, width: 2.4, height: 2.4, background: '#11203a', borderRadius: '50%' }} />
-            <span style={{ position: 'absolute', top: 9.5, left: 6, width: 4, height: 1.6, background: 'rgba(180,90,90,0.6)', borderRadius: 2 }} />
-          </>
-        ) : (
-          <span style={{ position: 'absolute', top: 7, left: 4, right: 4, height: 2, borderTop: '2px solid #11203a' }} />
-        )}
-      </div>
-      <div style={{ width: 6, height: 2, background: piel, margin: '-1px auto 0' }} />
-      <div style={{ position: 'relative', width: 22, height: sitting ? 12 : 16, background: outfit.color, border: '2px solid #11203a', borderRadius: '5px 5px 6px 6px', margin: '0 auto', zIndex: 1 }}>
-        <span style={{ position: 'absolute', top: 1, bottom: 1, left: '50%', transform: 'translateX(-50%)', width: 2, background: outfit.acento, opacity: 0.8 }} />
-        <span style={{ position: 'absolute', top: 1, left: -4, width: 4, height: sitting ? 8 : 11, background: outfit.color, border: '2px solid #11203a', borderRadius: 3 }} />
-        <span style={{ position: 'absolute', top: 1, right: -4, width: 4, height: sitting ? 8 : 11, background: outfit.color, border: '2px solid #11203a', borderRadius: 3 }} />
-      </div>
-      {!sitting && (
-        <div style={{ display: 'flex', gap: 3, justifyContent: 'center', marginTop: -1 }}>
-          <span style={{ width: 6, height: 6, background: '#1F2937', border: '2px solid #11203a', borderRadius: '0 0 3px 3px', transform: `translateY(${swing > 0 ? swing : 0}px)` }} />
-          <span style={{ width: 6, height: 6, background: '#1F2937', border: '2px solid #11203a', borderRadius: '0 0 3px 3px', transform: `translateY(${swing < 0 ? -swing : 0}px)` }} />
-        </div>
-      )}
-      <div style={{ fontSize: 9, fontWeight: 800, color: you ? '#0F172A' : '#475569', marginTop: 2, whiteSpace: 'nowrap', textShadow: '0 1px 0 rgba(255,255,255,0.85)' }}>{(name || '').split(' ')[0]}</div>
+    <div style={{ width: SEAT, height: SEAT, position: 'relative' }}>
+      <div style={{ position: 'absolute', top: -3, left: '20%', right: '20%', height: 6, borderRadius: 3, background: '#3A4252', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.15)' }} />
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: 2, borderRadius: '42% 42% 46% 46%', background: '#5B6675', border: '2px solid #3A4252', boxShadow: 'inset 0 -3px 0 rgba(0,0,0,0.22), inset 0 3px 0 rgba(255,255,255,0.16)' }} />
     </div>
   );
-}
-
-function Hair({ style, color }) {
-  if (style === 'pelo_none') return null;
-  const base = { position: 'relative', margin: '0 auto', zIndex: 3 };
-  if (style === 'pelo_largo')
-    return <div style={{ ...base, width: 20, height: 9, background: color, borderRadius: '9px 9px 3px 3px', boxShadow: `0 9px 0 -2px ${color}, 0 13px 0 -4px ${color}` }} />;
-  if (style === 'pelo_chongo')
-    return <div style={{ ...base, width: 17, height: 7, background: color, borderRadius: '8px 8px 2px 2px' }}><span style={{ position: 'absolute', top: -5, left: '50%', transform: 'translateX(-50%)', width: 7, height: 7, background: color, borderRadius: '50%' }} /></div>;
-  if (style === 'pelo_afro')
-    return <div style={{ ...base, width: 24, height: 14, background: color, borderRadius: '50%', marginBottom: -4 }} />;
-  if (style === 'pelo_punk')
-    return <div style={{ ...base, width: 17, height: 6, background: color, borderRadius: '6px 6px 0 0' }}><span style={{ position: 'absolute', top: -6, left: '50%', transform: 'translateX(-50%)', width: 4, height: 7, background: color, borderRadius: 2 }} /></div>;
-  return <div style={{ ...base, width: 18, height: 7, background: color, borderRadius: '8px 8px 2px 2px' }} />;
-}
-
-function Hat({ item }) {
-  const c = item.color;
-  if (item.id === 'hat_grad')
-    return <div style={{ position: 'relative', margin: '0 auto', zIndex: 4 }}><div style={{ width: 22, height: 4, background: c, margin: '0 auto', borderRadius: 1 }} /><div style={{ width: 11, height: 5, background: c, margin: '-1px auto 0', borderRadius: '0 0 2px 2px' }} /></div>;
-  if (item.id === 'hat_crown')
-    return <div style={{ width: 16, height: 7, margin: '0 auto', zIndex: 4, position: 'relative', background: c, clipPath: 'polygon(0 100%, 0 40%, 20% 70%, 40% 20%, 50% 60%, 60% 20%, 80% 70%, 100% 40%, 100% 100%)' }} />;
-  if (item.id === 'hat_cap')
-    return <div style={{ position: 'relative', margin: '0 auto', zIndex: 4, width: 16, height: 6, background: c, borderRadius: '6px 6px 0 0' }}><span style={{ position: 'absolute', bottom: 0, left: 14, width: 8, height: 3, background: c, borderRadius: '0 3px 3px 0' }} /></div>;
-  if (item.id === 'hat_safety')
-    return <div style={{ width: 18, height: 8, margin: '0 auto', zIndex: 4, position: 'relative', background: c, borderRadius: '9px 9px 0 0' }}><span style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 2, height: 8, background: 'rgba(0,0,0,0.2)' }} /></div>;
-  return <div style={{ width: 17, height: 7, margin: '0 auto', zIndex: 4, background: c, borderRadius: '7px 7px 0 0' }} />;
-}
-
-function Pet({ kind }) {
-  const face = kind === 'pet_cat' ? '🐱' : kind === 'pet_dog' ? '🐶' : kind === 'pet_robot' ? '🤖' : kind === 'pet_drone' ? '🛸' : kind === 'pet_chip' ? '🔲' : '●';
-  return <div style={{ width: 18, height: 18, display: 'grid', placeItems: 'center', fontSize: 15, animation: 'gv-bob 1.1s ease-in-out infinite', filter: 'drop-shadow(0 1px 0 rgba(15,23,42,0.25))' }}>{face}</div>;
 }
 
 /* ---------- OXXO ---------- */
@@ -720,13 +688,6 @@ const qlbl = { display: 'block', fontSize: 11.5, fontWeight: 700, color: T.inkSo
 const qinp = { width: '100%', padding: '9px 11px', borderRadius: 9, border: `1px solid ${T.border}`, fontSize: 13, fontFamily: T.font, outline: 'none', boxSizing: 'border-box', color: T.ink };
 
 /* ---------- helpers ---------- */
-function sleeperLook(person) {
-  const seed = (person.email || person.nombre || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  const piel = PIELES[seed % PIELES.length];
-  const peloColor = PELO_COLORES[(seed * 7) % PELO_COLORES.length];
-  const pelo = PELOS[(seed * 3) % PELOS.length].id;
-  return { piel, pelo, peloColor, outfit: { color: '#CBD5E1', acento: '#94A3B8' }, sombrero: null, aura: null };
-}
 function hits(cx, cy, obstaculos) {
   const half = AV / 2 - 4;
   const l = cx - half, r = cx + half, tp = cy - half + 6, b = cy + half;

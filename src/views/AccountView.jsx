@@ -2,18 +2,23 @@
    AccountView.jsx — Mi cuenta  [MIGRADA · fiel al HTML]
    ===================================================================== */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useInventory } from '../context/InventoryContext.jsx';
+import { useLang } from '../context/LangContext.jsx';
 import { fmtDate, TYPELBL, TYPECLR, rgba } from '../lib/constants.js';
 import { T, card, btn } from '../theme.js';
 import { Overlay } from '../components/AuthModal.jsx';
-import ExportImport from '../components/ExportImport.jsx';
-import TypesManager from '../components/TypesManager.jsx';
+import { Avatar, AVATAR_CSS, lookFromEquipado } from '../components/Avatar.jsx';
+import {
+  EQUIPADO_DEFAULT, PELOS, PIELES, PELO_COLORES, TIENDA, itemById,
+  fetchJuego, saveJuego,
+} from '../lib/game.js';
 
 export default function AccountView() {
   const { session, isAdmin, logout, enterAdmin, exitAdmin } = useAuth();
   const { usage, changelog } = useInventory();
+  const { t } = useLang();
   const [adminOpen, setAdminOpen] = useState(false);
 
   // Consumido por mí (transacciones type 'usar')
@@ -113,11 +118,124 @@ export default function AccountView() {
         </div>
       </div>
 
-      {/* Tipos de componente + Backup (solo admin) */}
-      {isAdmin && <TypesManager />}
-      {isAdmin && <ExportImport />}
+      {/* Personalización del avatar */}
+      <AvatarCard session={session} t={t} />
 
       {adminOpen && <AdminModal onClose={() => setAdminOpen(false)} onConfirm={enterAdmin} />}
+    </div>
+  );
+}
+
+/* ---------- Personalización del avatar (compartida con el juego) ---------- */
+function AvatarCard({ session, t }) {
+  const [equipado, setEquipado] = useState(EQUIPADO_DEFAULT);
+  const [comprados, setComprados] = useState(['out_bata', 'hat_none', 'pet_none', 'aura_none']);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!session) return;
+    let alive = true;
+    (async () => {
+      const { mine } = await fetchJuego(session.email);
+      if (!alive) return;
+      if (mine) {
+        setEquipado({ ...EQUIPADO_DEFAULT, ...(mine.equipado || {}) });
+        if (Array.isArray(mine.comprados) && mine.comprados.length) setComprados(mine.comprados);
+      }
+      setLoaded(true);
+    })();
+    return () => { alive = false; };
+  }, [session]);
+
+  function update(patch) {
+    const ne = { ...equipado, ...patch };
+    setEquipado(ne);
+    if (session) saveJuego(session.email, { equipado: ne });
+  }
+
+  const owned = (tipo) => TIENDA.filter((i) => i.tipo === tipo && (comprados.includes(i.id) || i.precio === 0));
+
+  return (
+    <div style={{ ...card, overflow: 'hidden', marginBottom: 16 }}>
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F5F9' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>{t('account.avatar')}</h3>
+        <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>{t('account.avatarHint')}</p>
+      </div>
+      <div className="resp-2col" style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 0 }}>
+        {/* preview */}
+        <div style={{ display: 'grid', placeItems: 'center', padding: '26px 0', background: 'linear-gradient(180deg,#F8FAFC,#EEF2F7)', borderRight: `1px solid ${T.border}` }}>
+          <div style={{ transform: 'scale(2)', transformOrigin: 'center' }}>
+            <Avatar look={lookFromEquipado(equipado)} name="" you />
+          </div>
+        </div>
+        {/* controles */}
+        <div style={{ padding: '18px 20px' }}>
+          <Section label={t('account.body')}>
+            <Field label={t('game.hair')}>
+              <Chips opciones={PELOS.map((p) => [p.id, p.nombre])} value={equipado.pelo} onPick={(v) => update({ pelo: v })} />
+            </Field>
+            <Field label={t('game.hairColor')}>
+              <Swatches values={PELO_COLORES} active={equipado.pelo_color} onPick={(c) => update({ pelo_color: c })} />
+            </Field>
+            <Field label={t('game.skin')}>
+              <Swatches values={PIELES} active={equipado.piel} onPick={(c) => update({ piel: c })} />
+            </Field>
+          </Section>
+
+          <Section label={t('account.equipOwned')}>
+            {[['outfit', '👕'], ['sombrero', '🎩'], ['mascota', '🐾'], ['aura', '✨']].map(([tipo, emo]) => {
+              const items = owned(tipo);
+              if (!items.length) return null;
+              return (
+                <Field key={tipo} label={emo}>
+                  <Chips opciones={items.map((i) => [i.id, i.nombre])} value={equipado[tipo]} onPick={(v) => update({ [tipo]: v })} />
+                </Field>
+              );
+            })}
+            <p style={{ fontSize: 11.5, color: T.muted, margin: '4px 0 0' }}>{t('account.getMore')}</p>
+          </Section>
+        </div>
+      </div>
+      <style>{AVATAR_CSS}</style>
+    </div>
+  );
+}
+
+function Section({ label, children }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>{label}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>{children}</div>
+    </div>
+  );
+}
+function Field({ label, children }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: T.inkSoft, width: 64, flexShrink: 0 }}>{label}</span>
+      <div style={{ flex: 1 }}>{children}</div>
+    </div>
+  );
+}
+function Chips({ opciones, value, onPick }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {opciones.map(([id, nombre]) => {
+        const on = value === id;
+        return (
+          <button key={id} onClick={() => onPick(id)} style={{
+            padding: '6px 11px', borderRadius: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, fontFamily: T.font,
+            border: `1px solid ${on ? T.primary : T.border}`, background: on ? T.primarySoft : '#fff', color: on ? T.primary : '#475569',
+          }}>{nombre}</button>
+        );
+      })}
+    </div>
+  );
+}
+function Swatches({ values, active, onPick }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+      {values.map((c) => <button key={c} onClick={() => onPick(c)} title={c} style={{ width: 28, height: 28, borderRadius: 8, background: c, cursor: 'pointer', border: `3px solid ${active === c ? T.primary : 'rgba(15,23,42,0.15)'}` }} />)}
     </div>
   );
 }

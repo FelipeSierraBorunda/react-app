@@ -1,14 +1,67 @@
 /* =====================================================================
-   AdminPanel.jsx — Panel de administrador  [MIGRADA COMPLETA]
+   AdminPanel.jsx — Panel de administrador (con navbar interno)
+   ---------------------------------------------------------------------
+   Reúne en un solo lugar lo que antes estaba disperso por la app:
+     · Usuarios y registro  → acceso al inventario + registro global
+     · Auditoría            → línea de tiempo de todas las acciones
+     · Tipos de componente  → crear/borrar categorías de componente
+     · Respaldo             → exportar / importar el inventario
+   Solo accesible para administradores (gate en App.jsx).
    ===================================================================== */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useLang } from '../context/LangContext.jsx';
 import { TYPELBL, TYPECLR, rgba, fmtDate } from '../lib/constants.js';
 import { T, card } from '../theme.js';
+import AuditView from './AuditView.jsx';
+import TypesManager from '../components/TypesManager.jsx';
+import ExportImport from '../components/ExportImport.jsx';
 
 export default function AdminPanel() {
+  const { t } = useLang();
+  const [tab, setTab] = useState('users');
+
+  const tabs = [
+    { id: 'users', label: t('admin.tabUsers') },
+    { id: 'audit', label: t('admin.tabAudit') },
+    { id: 'types', label: t('admin.tabTypes') },
+    { id: 'backup', label: t('admin.tabBackup') },
+  ];
+
+  return (
+    <div>
+      <h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: '0 0 14px', letterSpacing: '-0.01em' }}>{t('admin.title')}</h1>
+
+      {/* navbar interno del panel */}
+      <div style={{ display: 'flex', gap: 4, padding: 4, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: 22, flexWrap: 'wrap' }}>
+        {tabs.map((x) => (
+          <button
+            key={x.id}
+            onClick={() => setTab(x.id)}
+            style={{
+              padding: '9px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              fontSize: 13.5, fontWeight: 600, fontFamily: T.font,
+              background: tab === x.id ? T.ink : 'transparent',
+              color: tab === x.id ? '#fff' : T.inkSoft,
+            }}
+          >
+            {x.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'users' && <UsersTab />}
+      {tab === 'audit' && <AuditView />}
+      {tab === 'types' && <TypesManager />}
+      {tab === 'backup' && <ExportImport />}
+    </div>
+  );
+}
+
+/* ---------- Pestaña: usuarios + registro global ---------- */
+function UsersTab() {
   const { changelog } = useInventory();
   const { accounts, setInvAccess, session } = useAuth();
 
@@ -17,8 +70,6 @@ export default function AdminPanel() {
 
   return (
     <div>
-      <h1 style={{ fontSize: 20, margin: '0 0 16px' }}>Panel administrador</h1>
-
       {/* Acceso al inventario */}
       <div style={{ ...card, overflow: 'hidden', marginBottom: 24 }}>
         <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.border}` }}>
@@ -54,6 +105,7 @@ export default function AdminPanel() {
 
       {/* Resumen */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
+        <Stat label="Cuentas registradas" value={cuentas.length} />
         <Stat label="Cambios registrados" value={changelog.length} />
         <Stat label="Últimos 7 días" value={changelog.filter((c) => {
           const d = new Date(c.ts);

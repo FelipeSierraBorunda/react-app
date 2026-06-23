@@ -27,7 +27,7 @@ export const TIPOS = [
 // el valor "tipo" guardado en la base de datos)
 export const TC = {
   'Resistencia': '#DC2626', 'Capacitor': '#2563EB', 'Circuito Integrado (IC)': '#7C3AED', 'Transistor/MOSFET': '#D97706',
-  'Sensor': '#059669', 'Regulador': '#0891B2', 'Diodo / LED': '#E11D48',
+  'Sensor': '#059669', 'Regulador': '#0891B2', 'Diodo / LED': '#DB2777',
   'Inductor / Bobina': '#0D9488', 'Conector / Switch': '#C026D3', 'Actuador': '#65A30D', 'Módulo': '#16A34A', 'Cristal': '#6366F1',
   'Relay': '#EA580C', 'Otro': '#64748B',
 };

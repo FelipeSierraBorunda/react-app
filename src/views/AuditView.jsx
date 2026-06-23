@@ -10,6 +10,7 @@
 import { useMemo, useState } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { useLang } from '../context/LangContext.jsx';
+import { CONTAINERS } from '../lib/constants.js';
 import { T } from '../theme.js';
 
 const fmt = (s) => { try { return new Date(s).toLocaleString('es', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) { return s; } };
@@ -32,10 +33,28 @@ const MODULOS = ['inventario', 'prestamo', 'lab', 'cuenta', 'admin'];
 const MODLBL = { inventario: 'Inventario', prestamo: 'Préstamos', lab: 'Laboratorio', cuenta: 'Cuentas', admin: 'Admin' };
 
 export default function AuditView() {
-  const { auditoria, changelog, usage } = useInventory();
+  const { auditoria, changelog, usage, comps } = useInventory();
   const { t } = useLang();
   const [mod, setMod] = useState('todos');
   const [q, setQ] = useState('');
+  const [recientes, setRecientes] = useState(false);
+
+  // Índice código → ubicación del componente (para mostrar "dónde").
+  const lugarDe = useMemo(() => {
+    const nombreCont = {};
+    CONTAINERS.forEach((c) => { nombreCont[c.id] = c.name; });
+    const idx = {};
+    (comps || []).forEach((c) => {
+      const cont = nombreCont[c.contenedor] || c.contenedor || '';
+      const partes = [];
+      if (cont) partes.push(cont);
+      if (c.cajon) partes.push('Cajón ' + c.cajon);
+      if (c.mesa) partes.push(c.mesa);
+      const loc = partes.join(' · ');
+      [c.codigo, c.codigoInterno].forEach((k) => { if (k) idx[String(k)] = loc; });
+    });
+    return idx;
+  }, [comps]);
 
   // Fusiona la auditoría nueva con el histórico previo (changelog + usage).
   const eventos = useMemo(() => {
@@ -57,12 +76,14 @@ export default function AuditView() {
 
   const filtrados = useMemo(() => {
     const needle = q.trim().toLowerCase();
+    const limite = Date.now() - 7 * 24 * 60 * 60 * 1000;
     return eventos.filter((e) => {
       if (mod !== 'todos' && e.modulo !== mod) return false;
+      if (recientes && new Date(e.ts).getTime() < limite) return false;
       if (!needle) return true;
       return [e.usuario, e.objeto, e.detalle, e.accion].some((x) => String(x || '').toLowerCase().includes(needle));
     });
-  }, [eventos, mod, q]);
+  }, [eventos, mod, q, recientes]);
 
   return (
     <div style={{ maxWidth: 920 }}>
@@ -74,6 +95,7 @@ export default function AuditView() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={() => setMod('todos')} style={chip(mod === 'todos')}>{t('common.all')}</button>
         {MODULOS.map((m) => <button key={m} onClick={() => setMod(m)} style={chip(mod === m)}>{MODLBL[m]}</button>)}
+        <button onClick={() => setRecientes((v) => !v)} style={chip(recientes)}>🕒 {t('audit.recent')}</button>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('common.search')} style={{ marginLeft: 'auto', padding: '8px 12px', borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, fontFamily: T.font, outline: 'none', minWidth: 200 }} />
       </div>
 
@@ -82,19 +104,23 @@ export default function AuditView() {
           <div style={{ padding: 40, textAlign: 'center', color: T.muted, fontSize: 13 }}>{t('audit.empty')}</div>
         ) : (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '150px 110px 1fr 130px', gap: 12, padding: '10px 16px', borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              <span>{t('audit.who')}</span><span>{t('audit.action')}</span><span>{t('audit.detail')}</span><span style={{ textAlign: 'right' }}>{t('audit.when')}</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '150px 110px 1fr 150px 130px', gap: 12, padding: '10px 16px', borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <span>{t('audit.who')}</span><span>{t('audit.action')}</span><span>{t('audit.detail')}</span><span>{t('audit.where')}</span><span style={{ textAlign: 'right' }}>{t('audit.when')}</span>
             </div>
             <div style={{ maxHeight: '64vh', overflowY: 'auto' }}>
               {filtrados.slice(0, 600).map((e) => {
                 const a = ACC[e.accion] || { c: '#64748B', bg: '#F1F5F9', lbl: e.accion };
+                const lugar = e.objeto ? lugarDe[String(e.objeto)] : '';
                 return (
-                  <div key={e.id} style={{ display: 'grid', gridTemplateColumns: '150px 110px 1fr 130px', gap: 12, padding: '11px 16px', borderBottom: `1px solid ${T.borderSoft || '#F1F5F9'}`, alignItems: 'center' }}>
+                  <div key={e.id} style={{ display: 'grid', gridTemplateColumns: '150px 110px 1fr 150px 130px', gap: 12, padding: '11px 16px', borderBottom: `1px solid ${T.borderSoft || '#F1F5F9'}`, alignItems: 'center' }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.usuario || '—'}</span>
                     <span><span style={{ fontSize: 11.5, fontWeight: 700, color: a.c, background: a.bg, padding: '2px 8px', borderRadius: 6 }}>{a.lbl}</span></span>
                     <span style={{ fontSize: 12.5, color: T.inkSoft, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {e.objeto && <strong style={{ color: T.ink, fontFamily: T.mono, fontSize: 11.5, marginRight: 6 }}>{e.objeto}</strong>}
                       {e.detalle}
+                    </span>
+                    <span style={{ fontSize: 12, color: lugar ? T.inkSoft : T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {lugar ? <>📍 {lugar}</> : '—'}
                     </span>
                     <span style={{ fontSize: 11.5, color: T.muted, textAlign: 'right' }}>{fmt(e.ts)}</span>
                   </div>

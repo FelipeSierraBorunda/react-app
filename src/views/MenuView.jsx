@@ -9,12 +9,14 @@ import { useEffect } from 'react';
 import { useLab } from '../context/LabContext.jsx';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { useLang } from '../context/LangContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { T } from '../theme.js';
 
 export default function MenuView({ go }) {
   const { comps } = useInventory();
   const { ocupadas, totalSillas, presentes, ensureLoaded } = useLab();
   const { t } = useLang();
+  const { isAdmin } = useAuth();
 
   useEffect(() => { ensureLoaded(); }, [ensureLoaded]);
 
@@ -52,6 +54,17 @@ export default function MenuView({ go }) {
       ),
     },
   ];
+
+  if (isAdmin) {
+    cards.push({
+      id: 'admin', view: 'admin', accent: '#0F172A', soft: '#F1F5F9',
+      title: t('menu.admin'), desc: t('menu.adminDesc'),
+      stat: t('menu.adminStat'),
+      icon: (
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      ),
+    });
+  }
 
   return (
     <div style={{ maxWidth: 880, margin: '0 auto' }}>
