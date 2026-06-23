@@ -30,15 +30,8 @@ const STEP = 9, AV = 30;
 // Mismo recorte que el croquis (hueco abajo-izquierda).
 const L_CLIP = 'polygon(0 0,100% 0,100% 100%,72% 100%,72% 48%,0 48%)';
 const DOOR = { x: STAGE_W - 40, y: 14, w: 40, h: 96 }; // zona OXXO (pared derecha)
-const REST = { x: 92, y: 332, w: 128, h: 96 };           // zona de descanso (fallback)
+const SPAWN_FALLBACK = { x: 156, y: 392 };               // punto libre si no tienes mesa asignada
 const BASE_OWNED = ['out_bata', 'hat_none', 'pet_none', 'desk_gris', 'aura_none'];
-
-// Zonas ambientales decorativas (no bloquean el paso).
-const FIXTURES = [
-  { id: 'cafe', kind: 'cafe', x: 724, y: 16, w: 92, h: 46 },
-  { id: 'junta', kind: 'junta', x: 432, y: 312, w: 150, h: 100 },
-  { id: 'solda', kind: 'solda', x: 712, y: 300, w: 96, h: 50 },
-];
 
 export default function GameView({ go }) {
   const lab = useLab();
@@ -193,14 +186,13 @@ export default function GameView({ go }) {
   }
 
   // ---------- avatar WASD + animación ----------
-  const FALLBACK = { x: REST.x + REST.w / 2, y: REST.y + REST.h - 24 };
-  const [pos, setPos] = useState(FALLBACK);
+  const [pos, setPos] = useState(SPAWN_FALLBACK);
   const [dir, setDir] = useState('up');
   const [moving, setMoving] = useState(false);
   const [sitting, setSitting] = useState(true);
   const [phase, setPhase] = useState(0);
   const keys = useRef({});
-  const posRef = useRef(FALLBACK);
+  const posRef = useRef(SPAWN_FALLBACK);
   const movedRef = useRef(false);
   const nearRef = useRef(null);
   const atDoorRef = useRef(false);
@@ -219,14 +211,23 @@ export default function GameView({ go }) {
     })) || null;
   }, [mesas, session]);
 
-  // Punto de aparición: sentado en la silla de mi mesa; si no tengo, la zona de descanso.
+  // Punto de aparición: la misma silla que ocuparía mi fantasma en mi mesa.
   const spawnPoint = useMemo(() => {
-    if (miMesa && Array.isArray(miMesa.seats) && miMesa.seats.length) {
-      const s = miMesa.seats.find((x) => x.on) || miMesa.seats[0];
-      if (s) return { x: miMesa.x + s.dx + SEAT / 2, y: miMesa.y + s.dy + SEAT / 2 };
+    if (miMesa && Array.isArray(miMesa.seats)) {
+      const onSeats = miMesa.seats.filter((s) => s.on);
+      if (onSeats.length) {
+        const myName = (session?.nombre || '').trim().toLowerCase();
+        const ownerIdx = (miMesa.duenos || []).findIndex((d) => {
+          const dn = String(d || '').trim().toLowerCase();
+          return dn === myName || dn.split(' ')[0] === myName.split(' ')[0];
+        });
+        const idx = ownerIdx >= 0 ? Math.min(ownerIdx, onSeats.length - 1) : 0;
+        const s = onSeats[idx];
+        return { x: miMesa.x + s.dx + SEAT / 2, y: miMesa.y + s.dy + SEAT / 2 };
+      }
     }
-    return FALLBACK;
-  }, [miMesa]); // eslint-disable-line
+    return SPAWN_FALLBACK;
+  }, [miMesa, session]);
 
   // Coloca el avatar en su spawn una vez que cargan las mesas (si aún no se ha movido).
   const placedRef = useRef(false);
@@ -335,6 +336,14 @@ export default function GameView({ go }) {
 
   const seatPeople = useMemo(() => {
     const out = [];
+    const myName = (session?.nombre || '').trim().toLowerCase();
+    const myFirst = myName.split(' ')[0];
+    const isMe = (person) => {
+      if (!session) return false;
+      if (person.email && person.email === session.email) return true;
+      const pn = String(person.nombre || '').trim().toLowerCase();
+      return pn === myName || (myFirst && pn.split(' ')[0] === myFirst);
+    };
     const resolveEmail = (nombre) => {
       const key = String(nombre || '').trim().toLowerCase();
       return emailByName[key] || emailByName[key.split(' ')[0]] || null;
@@ -356,7 +365,7 @@ export default function GameView({ go }) {
       onSeats.forEach((s, i) => {
         const person = people[i] || null;
         let info = null;
-        if (person && !(session && person.email === session.email)) {
+        if (person && !isMe(person)) {
           const presente = person.email ? presentEmails.has(person.email) : false;
           const look = (person.email && lookByEmail[person.email]) || sleeperLook({ email: person.email, nombre: person.nombre });
           info = { nombre: person.nombre, look, presente };
@@ -465,19 +474,6 @@ export default function GameView({ go }) {
             </div>
           )}
 
-          {/* zona de descanso (sofá) */}
-          <div style={{ position: 'absolute', left: REST.x, top: REST.y, width: REST.w, height: REST.h, borderRadius: 16, background: 'radial-gradient(circle at 50% 38%, #DCCDEC, #C7B4DE)', border: '3px solid rgba(124,58,237,0.28)', boxShadow: 'inset 0 0 0 3px rgba(255,255,255,0.4)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 8 }}>
-            <span style={{ position: 'absolute', top: 6, left: '50%', transform: 'translateX(-50%)', fontSize: 8.5, fontWeight: 900, color: 'rgba(76,29,149,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>☕ {t('game.lounge')}</span>
-            <span style={{ position: 'absolute', top: 5, right: 8, fontSize: 15 }}>🪴</span>
-            <div style={{ width: REST.w - 30, height: 22, background: '#7C6FA6', borderRadius: '9px 9px 5px 5px', border: '2px solid #564B82', boxShadow: 'inset 0 4px 0 rgba(255,255,255,0.2), inset 0 -4px 0 rgba(0,0,0,0.2)', position: 'relative' }}>
-              <span style={{ position: 'absolute', top: 3, bottom: 5, left: '34%', width: 2, background: 'rgba(0,0,0,0.14)' }} />
-              <span style={{ position: 'absolute', top: 3, bottom: 5, left: '66%', width: 2, background: 'rgba(0,0,0,0.14)' }} />
-            </div>
-          </div>
-
-          {/* zonas ambientales */}
-          {FIXTURES.map((f) => <Fixture key={f.id} f={f} />)}
-
           {/* mobiliario */}
           {(mesas || []).map((m) => <Furniture key={m.id} m={m} highlight={nearModule && nearModule.id === m.id} />)}
 
@@ -524,8 +520,7 @@ export default function GameView({ go }) {
       {/* leyenda de zonas */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 8 }}>
         {[
-          ['📦', t('menu.inventory')], ['🗄️', 'Almacén'], ['🌾', 'Granja FPGA'], ['🦾', 'Brazo'],
-          ['☕', 'Café'], ['📋', 'Junta'], ['🔧', 'Soldadura'], ['🏪', 'OXXO'],
+          ['📦', t('menu.inventory')], ['🗄️', 'Almacén'], ['🌾', 'Granja FPGA'], ['🦾', 'Brazo'], ['🏪', 'OXXO'],
         ].map(([icon, lbl]) => (
           <span key={lbl} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: T.inkSoft, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 20, padding: '4px 10px' }}>
             <span style={{ fontSize: 13 }}>{icon}</span>{lbl}
@@ -594,40 +589,6 @@ function Furniture({ m, highlight }) {
       <span style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,0.96)', textShadow: '0 1px 1px rgba(0,0,0,0.35)', pointerEvents: 'none', padding: 2, textAlign: 'center' }}>{m.nombre}</span>
     </div>
   );
-}
-
-/* ---------- zonas ambientales ---------- */
-function Fixture({ f }) {
-  if (f.kind === 'cafe') {
-    return (
-      <div style={{ position: 'absolute', left: f.x, top: f.y, width: f.w, height: f.h, background: '#6B4F3A', borderRadius: 4, border: '2px solid #463323', boxShadow: 'inset 0 3px 0 rgba(255,255,255,0.14), 0 3px 0 rgba(0,0,0,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-        <span style={{ position: 'absolute', left: 6, top: 5, width: 16, height: 22, background: '#33414F', borderRadius: 3, border: '1.5px solid #1E293B' }} />
-        <span style={{ fontSize: 16 }}>☕</span>
-        <span style={{ fontSize: 9, fontWeight: 800, color: '#F5E6D3', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Café</span>
-      </div>
-    );
-  }
-  if (f.kind === 'junta') {
-    return (
-      <div style={{ position: 'absolute', left: f.x, top: f.y, width: f.w, height: f.h }}>
-        <div style={{ position: 'absolute', inset: 0, borderRadius: 14, background: 'repeating-linear-gradient(45deg,#CBD5E1,#CBD5E1 8px,#BCC7D6 8px,#BCC7D6 16px)', opacity: 0.5, border: '2px dashed rgba(71,85,105,0.32)' }} />
-        <div style={{ position: 'absolute', top: -7, left: '50%', transform: 'translateX(-50%)', width: f.w * 0.7, height: 15, background: '#16352A', borderRadius: 3, border: '2px solid #0F2C22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ fontSize: 7, fontWeight: 800, color: '#BBF7D0', letterSpacing: '0.06em' }}>PIZARRÓN</span>
-        </div>
-        <span style={{ position: 'absolute', bottom: 5, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 800, color: 'rgba(51,65,85,0.72)', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>📋 Junta</span>
-      </div>
-    );
-  }
-  if (f.kind === 'solda') {
-    return (
-      <div style={{ position: 'absolute', left: f.x, top: f.y, width: f.w, height: f.h, background: '#8A9099', borderRadius: 4, border: '2px solid #565E6A', boxShadow: 'inset 0 3px 0 rgba(255,255,255,0.16), 0 3px 0 rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-        <span style={{ position: 'absolute', right: 7, top: -6, fontSize: 11, opacity: 0.7 }}>💨</span>
-        <span style={{ fontSize: 15 }}>🔧</span>
-        <span style={{ fontSize: 8.5, fontWeight: 800, color: '#1F2937', textTransform: 'uppercase', letterSpacing: '0.03em', textAlign: 'center', lineHeight: 1.1 }}>Estación<br />soldadura</span>
-      </div>
-    );
-  }
-  return null;
 }
 
 function Chair() {
