@@ -11,6 +11,7 @@
 
 import { useRef, useEffect } from 'react';
 import { STAGE_W, STAGE_H, SEAT } from '../lib/lab-layout.js';
+import { drawAvatar, shade as shadeColor } from '../lib/avatarSprite.js';
 
 const TILE = 20;                 // tamaño de baldosa en coords de mundo
 const VIEW_W = 420, VIEW_H = 264; // viewport lógico (cámara acercada)
@@ -20,12 +21,12 @@ const MOD_COLOR = { inventario: '#3D6FB4', almacen: '#3D6FB4', granja: '#C9772E'
 
 export default function PixelRoom({
   mesas, seatPeople, pos, dir, moving, sitting, phase,
-  look, decoItems, miMesa, nearModule, doorRect, playerName,
+  playerSprite, decoItems, miMesa, nearModule, doorRect, playerName,
   floorTone = '#caa46b',
 }) {
   const canvasRef = useRef(null);
   const stateRef = useRef({});
-  stateRef.current = { mesas, seatPeople, pos, dir, moving, sitting, phase, look, decoItems, miMesa, nearModule, doorRect, playerName, floorTone };
+  stateRef.current = { mesas, seatPeople, pos, dir, moving, sitting, phase, playerSprite, decoItems, miMesa, nearModule, doorRect, playerName, floorTone };
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -44,54 +45,18 @@ export default function PixelRoom({
     };
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-    // ---- sprite de personaje (pixel-art original) ----
-    function drawChar(cx, cy, o) {
-      const dir = o.dir || 'down';
-      const skin = o.skin || '#F2C9A0', hair = o.hair || '#3B2A20';
-      const coat = o.coat || '#EEF2F7', acc = o.accent || shade(coat, -0.25);
-      const OUT = '#15223e';
-      const x = Math.round(cx - 7), top = Math.round(cy - (o.sitting ? 19 : 22));
-      // sombra
-      ctx.fillStyle = 'rgba(15,23,42,0.22)'; ctx.beginPath();
-      ctx.ellipse(cx, cy + 1, 7, 3, 0, 0, Math.PI * 2); ctx.fill();
-      const R = (c, rx, ry, w, h) => { ctx.fillStyle = c; ctx.fillRect(x + rx, top + ry, w, h); };
-      // piernas / base
-      if (!o.sitting) {
-        const sw = o.phase === 1 ? 1 : o.phase === 3 ? -1 : 0;
-        R('#2b3550', 3, 18, 3, 4); R('#2b3550', 8, 18, 3, 4);
-        R('#161d2e', 3, 21 + (sw > 0 ? 1 : 0), 3, 1); R('#161d2e', 8, 21 + (sw < 0 ? 1 : 0), 3, 1);
-      } else { R('#2b3550', 3, 17, 8, 3); }
-      // torso
-      R(OUT, 2, 10, 10, 9); R(coat, 3, 11, 8, 7); R(acc, 3, 16, 8, 2);
-      // brazos
-      R(coat, 1, 11, 2, 6); R(coat, 11, 11, 2, 6); R(OUT, 1, 11, 1, 6); R(OUT, 12, 11, 1, 6);
-      // cabeza
-      R(OUT, 2, 1, 10, 9); R(skin, 3, 2, 8, 7);
-      // pelo según dirección
-      ctx.fillStyle = hair;
-      if (dir === 'up') { ctx.fillRect(x + 3, top + 2, 8, 6); }
-      else { ctx.fillRect(x + 3, top + 1, 8, 3); ctx.fillRect(x + 3, top + 1, 2, 5); ctx.fillRect(x + 9, top + 1, 2, 5); }
-      // sombrero
-      if (o.hat && o.hat !== 'transparent') { ctx.fillStyle = o.hat; ctx.fillRect(x + 2, top, 10, 3); ctx.fillRect(x + 4, top - 2, 6, 2); }
-      // ojos (no de espaldas)
-      if (dir !== 'up') {
-        ctx.fillStyle = OUT;
-        if (o.sleeping) { ctx.fillRect(x + 4, top + 6, 2, 1); ctx.fillRect(x + 8, top + 6, 2, 1); }
-        else if (dir === 'left') ctx.fillRect(x + 4, top + 5, 1.6, 2);
-        else if (dir === 'right') ctx.fillRect(x + 8.4, top + 5, 1.6, 2);
-        else { ctx.fillRect(x + 5, top + 5, 1.6, 2); ctx.fillRect(x + 8, top + 5, 1.6, 2); }
-      }
-      // zzz si duerme
-      if (o.sleeping) { ctx.fillStyle = '#64748b'; ctx.font = '7px "Silkscreen",monospace'; ctx.fillText('z', cx + 7, top + 2); }
-      // nombre
-      if (o.name) {
+    // etiqueta de nombre + punto de presencia sobre un sprite
+    function label(cx, feetY, name, you, opts) {
+      const top = feetY - 26;
+      if (name) {
         ctx.font = '7px "Silkscreen",monospace'; ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fillText(o.name, cx + 0.6, top - 3.4);
-        ctx.fillStyle = o.you ? '#15223e' : '#33406b'; ctx.fillText(o.name, cx, top - 4); ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fillText(name, cx + 0.6, top - 3.4);
+        ctx.fillStyle = you ? '#15223e' : '#33406b'; ctx.fillText(name, cx, top - 4); ctx.textAlign = 'left';
       }
-      // indicador presente/ausente
-      if (o.dot) { ctx.fillStyle = o.present ? '#22C55E' : '#94A3B8'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.arc(x + 12, top + 1, 1.8, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+      if (opts && opts.dot) {
+        ctx.fillStyle = opts.present ? '#22C55E' : '#94A3B8'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(cx + 6, top, 1.8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
     }
 
     function drawChair(cx, cy) {
@@ -221,24 +186,17 @@ export default function PixelRoom({
         draws.push({ y: seat.y, fn: () => {
           drawChair(seat.x, seat.y);
           if (seat.info) {
-            const lk = seat.info.look || {};
-            drawChar(seat.x, seat.y - 2, {
-              skin: lk.piel, hair: lk.peloColor, coat: (lk.outfit && lk.outfit.color) || '#EEF2F7',
-              accent: lk.outfit && lk.outfit.acento, hat: lk.sombrero && lk.sombrero.color,
-              dir: 'up', sitting: true, name: seat.info.nombre, sleeping: !seat.info.presente,
-              dot: true, present: seat.info.presente,
-            });
+            drawAvatar(ctx, seat.x, seat.y + 2, { ...(seat.info.sprite || {}), dir: 'up', sitting: true, sleeping: !seat.info.presente }, 1);
+            label(seat.x, seat.y + 2, seat.info.nombre, false, { dot: true, present: seat.info.presente });
           }
         } });
       });
       // jugador
-      const lk = s.look || {};
       const p2 = s.pos || { x: STAGE_W / 2, y: STAGE_H / 2 };
-      draws.push({ y: p2.y, fn: () => drawChar(p2.x, p2.y - 2, {
-        skin: lk.piel, hair: lk.peloColor, coat: (lk.outfit && lk.outfit.color) || '#F6F8FC',
-        accent: lk.outfit && lk.outfit.acento, hat: lk.sombrero && lk.sombrero.color,
-        dir: s.dir, sitting: s.sitting, phase: s.moving ? s.phase : 0, name: s.playerName, you: true,
-      }) });
+      draws.push({ y: p2.y, fn: () => {
+        drawAvatar(ctx, p2.x, p2.y + 4, { ...(s.playerSprite || {}), dir: s.dir, sitting: s.sitting, frame: s.moving ? s.phase : 0 }, 1.05);
+        label(p2.x, p2.y + 4, s.playerName, true);
+      } });
       draws.sort((a, b) => a.y - b.y).forEach((d) => d.fn());
 
       // prompt módulo

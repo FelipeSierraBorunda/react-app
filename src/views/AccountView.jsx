@@ -10,10 +10,13 @@ import { fmtDate, TYPELBL, TYPECLR, rgba } from '../lib/constants.js';
 import { T, card, btn } from '../theme.js';
 import { Overlay } from '../components/AuthModal.jsx';
 import { Avatar, AVATAR_CSS, lookFromEquipado } from '../components/Avatar.jsx';
+import AvatarPixel from '../components/AvatarPixel.jsx';
 import {
   EQUIPADO_DEFAULT, PELOS, PIELES, PELO_COLORES, CARAS, TIENDA, itemById,
+  CAMISA_COLORES, PANTALON_COLORES, LENTES,
   fetchJuego, saveJuego,
 } from '../lib/game.js';
+import { spriteFromEquipado } from '../lib/avatarSprite.js';
 
 export default function AccountView() {
   const { session, isAdmin, logout, enterAdmin, exitAdmin } = useAuth();
@@ -173,9 +176,7 @@ function AvatarCard({ session, t }) {
       <div className="resp-2col" style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 0 }}>
         {/* preview */}
         <div style={{ display: 'grid', placeItems: 'center', padding: '26px 0', background: 'linear-gradient(180deg,#F8FAFC,#EEF2F7)', borderRight: `1px solid ${T.border}` }}>
-          <div style={{ transform: 'scale(2)', transformOrigin: 'center' }}>
-            <Avatar look={lookFromEquipado(equipado)} name="" you />
-          </div>
+          <AvatarPixel sprite={spriteFromEquipado(equipado, itemById)} size={6} animate />
         </div>
         {/* controles */}
         <div style={{ padding: '18px 20px' }}>
@@ -189,8 +190,14 @@ function AvatarCard({ session, t }) {
             <Field label={t('game.skin')}>
               <Swatches values={PIELES} active={equipado.piel} onPick={(c) => update({ piel: c })} />
             </Field>
-            <Field label={t('game.face')}>
-              <Chips opciones={CARAS.map((c) => [c.id, c.nombre])} value={equipado.cara} onPick={(v) => update({ cara: v })} />
+            <Field label="👕 Camisa">
+              <Swatches values={CAMISA_COLORES} active={equipado.camisa_color} onPick={(c) => update({ camisa_color: c })} />
+            </Field>
+            <Field label="👖 Pantalón">
+              <Swatches values={PANTALON_COLORES} active={equipado.pantalon_color} onPick={(c) => update({ pantalon_color: c })} />
+            </Field>
+            <Field label="🕶️ Lentes">
+              <Chips opciones={LENTES.map((l) => [l.id, l.nombre])} value={equipado.lentes} onPick={(v) => update({ lentes: v })} />
             </Field>
           </Section>
 

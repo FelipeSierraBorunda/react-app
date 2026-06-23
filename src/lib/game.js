@@ -94,7 +94,21 @@ export const EQUIPADO_DEFAULT = {
   outfit: 'out_bata', sombrero: 'hat_none', mascota: 'pet_none', escritorio: 'desk_gris', aura: 'aura_none',
   // personalización gratuita
   pelo: 'pelo_corto', pelo_color: '#3B2A20', piel: '#F2C9A0', cara: 'cara_normal',
+  camisa_color: '#2563EB', pantalon_color: '#3A4256', lentes: 'lentes_none',
 };
+
+// Colores de camisa y pantalón (gratis). Dan mucha variedad para distinguir
+// a cada persona de un vistazo.
+export const CAMISA_COLORES = ['#E2E8F0', '#2563EB', '#0EA5E9', '#16A34A', '#65A30D', '#EAB308', '#F97316', '#DC2626', '#DB2777', '#7C3AED', '#0F172A', '#FFFFFF'];
+export const PANTALON_COLORES = ['#3A4256', '#1E3A8A', '#0F172A', '#334155', '#5B3A1E', '#166534', '#7F1D1D', '#4C1D95', '#9A8C73', '#111827'];
+
+// Lentes (gratis).
+export const LENTES = [
+  { id: 'lentes_none', nombre: 'Sin lentes' },
+  { id: 'lentes_normal', nombre: 'Lentes' },
+  { id: 'lentes_redondos', nombre: 'Redondos' },
+  { id: 'lentes_sol', nombre: 'De sol' },
+];
 
 // Expresiones de rostro gratuitas (el render vive en Avatar.jsx).
 export const CARAS = [
@@ -109,9 +123,12 @@ export const CARAS = [
 export const PELOS = [
   { id: 'pelo_none',  nombre: 'Rapado' },
   { id: 'pelo_corto', nombre: 'Corto' },
+  { id: 'pelo_fleco', nombre: 'Fleco' },
   { id: 'pelo_largo', nombre: 'Largo' },
+  { id: 'pelo_coleta', nombre: 'Coleta' },
   { id: 'pelo_chongo', nombre: 'Chongo' },
   { id: 'pelo_afro',  nombre: 'Afro' },
+  { id: 'pelo_mohawk', nombre: 'Mohawk' },
   { id: 'pelo_punk',  nombre: 'Punk' },
 ];
 

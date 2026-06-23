@@ -18,6 +18,7 @@ import { useInventory } from '../context/InventoryContext.jsx';
 import { STAGE_W, STAGE_H, SEAT } from '../lib/lab-layout.js';
 import {
   TIENDA, EQUIPADO_DEFAULT, PELOS, PIELES, PELO_COLORES, CARAS, itemById, ES_ACUMULABLE,
+  CAMISA_COLORES, PANTALON_COLORES, LENTES,
   fetchJuego, saveJuego, calcRecompensa, empleadoSemana,
   INSIGNIAS, insigniaDe, siguienteInsignia,
   PREMIO_EMPLEADO_MONEDAS, PREMIO_EMPLEADO_ITEM, semanaId,
@@ -26,6 +27,8 @@ import {
 import { T } from '../theme.js';
 import { Avatar, Pet, sleeperLook, lookFromEquipado } from '../components/Avatar.jsx';
 import PixelRoom from '../components/PixelRoom.jsx';
+import AvatarPixel from '../components/AvatarPixel.jsx';
+import { spriteFromEquipado, seededSprite } from '../lib/avatarSprite.js';
 
 const STEP = 9, AV = 30;
 // Mismo recorte que el croquis (hueco abajo-izquierda).
@@ -333,7 +336,7 @@ export default function GameView({ go }) {
   // ---------- asientos: dueños en su mesa + visitantes presentes ----------
   const lookByEmail = useMemo(() => {
     const m = {};
-    (juegoRows || []).forEach((r) => { if (r && r.email && r.equipado) m[r.email] = lookFromEquipado(r.equipado); });
+    (juegoRows || []).forEach((r) => { if (r && r.email && r.equipado) m[r.email] = spriteFromEquipado(r.equipado, itemById); });
     return m;
   }, [juegoRows]);
 
@@ -388,8 +391,8 @@ export default function GameView({ go }) {
         let info = null;
         if (person && !isMe(person)) {
           const presente = person.email ? presentEmails.has(person.email) : false;
-          const look = (person.email && lookByEmail[person.email]) || sleeperLook({ email: person.email, nombre: person.nombre });
-          info = { nombre: person.nombre, look, presente };
+          const sprite = (person.email && lookByEmail[person.email]) || seededSprite(person.email || person.nombre, PIELES, PELO_COLORES, PELOS);
+          info = { nombre: person.nombre, sprite, presente };
         }
         out.push({ key: m.id + '-' + i, x: m.x + s.dx + SEAT / 2, y: m.y + s.dy + SEAT / 2, info });
       });
@@ -400,12 +403,7 @@ export default function GameView({ go }) {
   const sittingRef = useRef(true); sittingRef.current = sitting;
   const seatRef = useRef([]); seatRef.current = seatPeople;
 
-  const look = {
-    piel: equipado.piel, pelo: equipado.pelo, peloColor: equipado.pelo_color, cara: equipado.cara,
-    outfit: itemById(equipado.outfit) || itemById('out_bata'),
-    sombrero: itemById(equipado.sombrero),
-    aura: itemById(equipado.aura),
-  };
+  const playerSprite = useMemo(() => spriteFromEquipado(equipado, itemById), [equipado]);
   const pet = itemById(equipado.mascota);
   const deskFloor = itemById(equipado.escritorio) || itemById('desk_gris');
   const decoItems = deco.map(itemById).filter(Boolean);
@@ -472,7 +470,7 @@ export default function GameView({ go }) {
         moving={moving}
         sitting={sitting}
         phase={phase}
-        look={look}
+        playerSprite={playerSprite}
         decoItems={decoItems}
         miMesa={miMesa}
         nearModule={nearModule}
@@ -644,13 +642,8 @@ function Customizer({ t, equipado, onLook, onClose }) {
         </div>
         <p style={{ fontSize: 12, color: T.muted, margin: '0 0 16px' }}>{t('game.free')} · {t('game.previewHint')}</p>
         <div style={{ display: 'grid', placeItems: 'center', padding: '14px 0 22px', background: '#F8FAFC', borderRadius: 12, marginBottom: 16 }}>
-          <Avatar look={{ piel: equipado.piel, pelo: equipado.pelo, peloColor: equipado.pelo_color, cara: equipado.cara, outfit: itemById(equipado.outfit) || itemById('out_bata'), sombrero: itemById(equipado.sombrero), aura: itemById(equipado.aura) }} name="" you />
+          <AvatarPixel sprite={spriteFromEquipado(equipado, itemById)} size={5} animate />
         </div>
-        <Group label={t('game.face')}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {CARAS.map((c) => <button key={c.id} onClick={() => onLook({ cara: c.id })} style={chipBtn(equipado.cara === c.id)}>{c.nombre}</button>)}
-          </div>
-        </Group>
         <Group label={t('game.hair')}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {PELOS.map((p) => <button key={p.id} onClick={() => onLook({ pelo: p.id })} style={chipBtn(equipado.pelo === p.id)}>{p.nombre}</button>)}
@@ -658,6 +651,13 @@ function Customizer({ t, equipado, onLook, onClose }) {
         </Group>
         <Group label={t('game.hairColor')}><Swatches values={PELO_COLORES} active={equipado.pelo_color} onPick={(c) => onLook({ pelo_color: c })} /></Group>
         <Group label={t('game.skin')}><Swatches values={PIELES} active={equipado.piel} onPick={(c) => onLook({ piel: c })} /></Group>
+        <Group label="👕 Camisa"><Swatches values={CAMISA_COLORES} active={equipado.camisa_color} onPick={(c) => onLook({ camisa_color: c })} /></Group>
+        <Group label="👖 Pantalón"><Swatches values={PANTALON_COLORES} active={equipado.pantalon_color} onPick={(c) => onLook({ pantalon_color: c })} /></Group>
+        <Group label="🕶️ Lentes">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {LENTES.map((l) => <button key={l.id} onClick={() => onLook({ lentes: l.id })} style={chipBtn(equipado.lentes === l.id)}>{l.nombre}</button>)}
+          </div>
+        </Group>
       </div>
     </div>
   );
