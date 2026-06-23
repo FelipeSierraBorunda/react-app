@@ -11,7 +11,7 @@ import { T, card, btn } from '../theme.js';
 import { Overlay } from '../components/AuthModal.jsx';
 import { Avatar, AVATAR_CSS, lookFromEquipado } from '../components/Avatar.jsx';
 import {
-  EQUIPADO_DEFAULT, PELOS, PIELES, PELO_COLORES, TIENDA, itemById,
+  EQUIPADO_DEFAULT, PELOS, PIELES, PELO_COLORES, CARAS, TIENDA, itemById,
   fetchJuego, saveJuego,
 } from '../lib/game.js';
 
@@ -179,6 +179,9 @@ function AvatarCard({ session, t }) {
             </Field>
             <Field label={t('game.skin')}>
               <Swatches values={PIELES} active={equipado.piel} onPick={(c) => update({ piel: c })} />
+            </Field>
+            <Field label={t('game.face')}>
+              <Chips opciones={CARAS.map((c) => [c.id, c.nombre])} value={equipado.cara} onPick={(v) => update({ cara: v })} />
             </Field>
           </Section>
 

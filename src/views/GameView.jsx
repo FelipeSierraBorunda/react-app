@@ -14,30 +14,37 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLab } from '../context/LabContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useLang } from '../context/LangContext.jsx';
+import { useInventory } from '../context/InventoryContext.jsx';
 import { STAGE_W, STAGE_H, SEAT } from '../lib/lab-layout.js';
 import {
-  TIENDA, EQUIPADO_DEFAULT, PELOS, PIELES, PELO_COLORES, itemById, ES_ACUMULABLE,
+  TIENDA, EQUIPADO_DEFAULT, PELOS, PIELES, PELO_COLORES, CARAS, itemById, ES_ACUMULABLE,
   fetchJuego, saveJuego, calcRecompensa, empleadoSemana,
   INSIGNIAS, insigniaDe, siguienteInsignia,
   PREMIO_EMPLEADO_MONEDAS, PREMIO_EMPLEADO_ITEM, semanaId,
   fetchQuiz, quizActivas, crearPregunta, responderPregunta, QUIZ_PREMIO,
 } from '../lib/game.js';
 import { T } from '../theme.js';
-import { Avatar, Pet, sleeperLook } from '../components/Avatar.jsx';
+import { Avatar, Pet, sleeperLook, lookFromEquipado } from '../components/Avatar.jsx';
 
 const STEP = 9, AV = 30;
+// Mismo recorte que el croquis (hueco abajo-izquierda).
+const L_CLIP = 'polygon(0 0,100% 0,100% 100%,72% 100%,72% 48%,0 48%)';
 const DOOR = { x: STAGE_W - 40, y: 14, w: 40, h: 96 }; // zona OXXO (pared derecha)
-const REST = { x: 92, y: 332, w: 128, h: 96 };           // zona de descanso (sofá)
-const SPAWN = { x: REST.x + REST.w / 2, y: REST.y + REST.h - 24 };
+const REST = { x: 92, y: 332, w: 128, h: 96 };           // zona de descanso (fallback)
 const BASE_OWNED = ['out_bata', 'hat_none', 'pet_none', 'desk_gris', 'aura_none'];
 
-// Mapa de módulo (kind) → vista destino de la app.
-const MODULO_VISTA = { inventario: 'table', almacen: 'visual', granja: 'granja', brazo: 'granja' };
+// Zonas ambientales decorativas (no bloquean el paso).
+const FIXTURES = [
+  { id: 'cafe', kind: 'cafe', x: 724, y: 16, w: 92, h: 46 },
+  { id: 'junta', kind: 'junta', x: 432, y: 312, w: 150, h: 100 },
+  { id: 'solda', kind: 'solda', x: 712, y: 300, w: 96, h: 50 },
+];
 
 export default function GameView({ go }) {
   const lab = useLab();
-  const { session } = useAuth();
+  const { session, invAccess, accounts } = useAuth();
   const { t } = useLang();
+  const inv = useInventory();
   const { mesas, presentes, presencia, presentesPorMesa, ensureLoaded, nombreDe } = lab;
 
   useEffect(() => { ensureLoaded(); }, [ensureLoaded]);
@@ -57,9 +64,11 @@ export default function GameView({ go }) {
   const [equipado, setEquipado] = useState(EQUIPADO_DEFAULT);
   const [ultRecompensa, setUltRecompensa] = useState(null);
   const [premioSem, setPremioSem] = useState('');
+  const [juegoRows, setJuegoRows] = useState([]);
   const [shopOpen, setShopOpen] = useState(false);
   const [custOpen, setCustOpen] = useState(false);
   const [quizOpen, setQuizOpen] = useState(false);
+  const [modulo, setModulo] = useState(null);
   const [flash, setFlash] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [atDoor, setAtDoor] = useState(false);
@@ -79,7 +88,8 @@ export default function GameView({ go }) {
   useEffect(() => {
     if (!session) { setLoaded(true); return; }
     (async () => {
-      const { mine } = await fetchJuego(session.email);
+      const { mine, rows } = await fetchJuego(session.email);
+      setJuegoRows(rows || []);
       if (mine) {
         setMonedas(mine.monedas || 0);
         setGastado(mine.gastado || 0);
@@ -183,17 +193,50 @@ export default function GameView({ go }) {
   }
 
   // ---------- avatar WASD + animación ----------
-  const [pos, setPos] = useState(SPAWN);
+  const FALLBACK = { x: REST.x + REST.w / 2, y: REST.y + REST.h - 24 };
+  const [pos, setPos] = useState(FALLBACK);
   const [dir, setDir] = useState('up');
   const [moving, setMoving] = useState(false);
   const [sitting, setSitting] = useState(true);
   const [phase, setPhase] = useState(0);
   const keys = useRef({});
-  const posRef = useRef(SPAWN);
+  const posRef = useRef(FALLBACK);
+  const movedRef = useRef(false);
   const nearRef = useRef(null);
   const atDoorRef = useRef(false);
   const obstaculos = useMemo(() => (mesas || []).filter((m) => m && typeof m.x === 'number'), [mesas]);
   const modulos = useMemo(() => obstaculos.filter((m) => m.kind && m.kind !== 'mesa'), [obstaculos]);
+
+  // Mi mesa = aquella cuyos dueños incluyen mi nombre.
+  const miMesa = useMemo(() => {
+    if (!session) return null;
+    const full = (session.nombre || '').trim().toLowerCase();
+    const first = full.split(' ')[0];
+    if (!full) return null;
+    return (mesas || []).find((m) => Array.isArray(m.duenos) && m.duenos.some((d) => {
+      const dn = String(d || '').trim().toLowerCase();
+      return dn === full || dn === first || dn.split(' ')[0] === first;
+    })) || null;
+  }, [mesas, session]);
+
+  // Punto de aparición: sentado en la silla de mi mesa; si no tengo, la zona de descanso.
+  const spawnPoint = useMemo(() => {
+    if (miMesa && Array.isArray(miMesa.seats) && miMesa.seats.length) {
+      const s = miMesa.seats.find((x) => x.on) || miMesa.seats[0];
+      if (s) return { x: miMesa.x + s.dx + SEAT / 2, y: miMesa.y + s.dy + SEAT / 2 };
+    }
+    return FALLBACK;
+  }, [miMesa]); // eslint-disable-line
+
+  // Coloca el avatar en su spawn una vez que cargan las mesas (si aún no se ha movido).
+  const placedRef = useRef(false);
+  useEffect(() => {
+    if (placedRef.current || movedRef.current) return;
+    if (!mesas || !mesas.length) return;
+    placedRef.current = true;
+    posRef.current = { x: spawnPoint.x, y: spawnPoint.y };
+    setPos({ x: spawnPoint.x, y: spawnPoint.y });
+  }, [mesas, spawnPoint]);
 
   useEffect(() => {
     if (isMobile) return;
@@ -203,6 +246,7 @@ export default function GameView({ go }) {
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       const k = e.key.toLowerCase();
       if (k === 'e') { entrarModulo(); return; }
+      if (k === 'f') { toggleSit(); return; }
       if (game(k)) { keys.current[k] = true; e.preventDefault(); }
     };
     const up = (e) => { keys.current[e.key.toLowerCase()] = false; };
@@ -214,8 +258,24 @@ export default function GameView({ go }) {
     const m = nearRef.current;
     if (!m) return;
     if (m.link) { window.open(m.link, '_blank', 'noreferrer'); return; }
-    const vista = MODULO_VISTA[m.kind];
-    if (vista && go) go(vista);
+    setModulo(m); // abre el panel dentro del juego (sin salir de la pestaña)
+  }
+
+  // Sentarse en la silla libre más cercana (o levantarse si ya está sentado).
+  function toggleSit() {
+    if (sittingRef.current) { setSitting(false); return; }
+    const p = posRef.current;
+    let best = null, bd = 1e9;
+    (seatRef.current || []).forEach((s) => {
+      if (s.info) return; // silla ocupada
+      const d = Math.hypot(s.x - p.x, s.y - p.y);
+      if (d < bd) { bd = d; best = s; }
+    });
+    if (best && bd < 64) {
+      posRef.current = { x: best.x, y: best.y };
+      setPos({ x: best.x, y: best.y });
+      setSitting(true); setDir('up'); movedRef.current = true;
+    }
   }
 
   useEffect(() => {
@@ -230,6 +290,7 @@ export default function GameView({ go }) {
       if (!dx && !dy) { setMoving(false); return; }
       setMoving(true);
       setSitting(false);
+      movedRef.current = true;
       setPhase((p) => (p + 1) % 4);
       setDir(dy < 0 ? 'up' : dy > 0 ? 'down' : dx < 0 ? 'left' : 'right');
       const p = posRef.current;
@@ -251,22 +312,66 @@ export default function GameView({ go }) {
 
   useEffect(() => { if (atDoor && !shopOpen) setShopOpen(true); }, [atDoor]); // eslint-disable-line
 
-  // ---------- asientos ocupados ----------
+  // ---------- asientos: dueños en su mesa + visitantes presentes ----------
+  const lookByEmail = useMemo(() => {
+    const m = {};
+    (juegoRows || []).forEach((r) => { if (r && r.email && r.equipado) m[r.email] = lookFromEquipado(r.equipado); });
+    return m;
+  }, [juegoRows]);
+
+  const emailByName = useMemo(() => {
+    const m = {};
+    Object.values(accounts || {}).forEach((a) => {
+      if (!a || !a.nombre) return;
+      const full = String(a.nombre).trim().toLowerCase();
+      if (!(full in m)) m[full] = a.email;
+      const first = full.split(' ')[0];
+      if (first && !(first in m)) m[first] = a.email;
+    });
+    return m;
+  }, [accounts]);
+
+  const presentEmails = useMemo(() => new Set((presentes || []).map((p) => p.email)), [presentes]);
+
   const seatPeople = useMemo(() => {
     const out = [];
+    const resolveEmail = (nombre) => {
+      const key = String(nombre || '').trim().toLowerCase();
+      return emailByName[key] || emailByName[key.split(' ')[0]] || null;
+    };
     (mesas || []).forEach((m) => {
       if (!m.seats) return;
       const onSeats = m.seats.filter((s) => s.on);
-      const occ = (presentesPorMesa[m.id] || []).filter((p) => !(session && p.email === session.email));
+      if (!onSeats.length) return;
+
+      const owners = (m.duenos || []).map((nombre) => ({ nombre, email: resolveEmail(nombre) }));
+      const ownerEmails = new Set(owners.map((o) => o.email).filter(Boolean));
+      const visitors = (presentesPorMesa[m.id] || [])
+        .filter((p) => !(session && p.email === session.email))
+        .filter((p) => !ownerEmails.has(p.email))
+        .map((p) => ({ nombre: p.nombre, email: p.email }));
+
+      const people = [...owners, ...visitors].slice(0, onSeats.length);
+
       onSeats.forEach((s, i) => {
-        out.push({ key: m.id + '-' + i, x: m.x + s.dx + SEAT / 2, y: m.y + s.dy + SEAT / 2, person: occ[i] || null });
+        const person = people[i] || null;
+        let info = null;
+        if (person && !(session && person.email === session.email)) {
+          const presente = person.email ? presentEmails.has(person.email) : false;
+          const look = (person.email && lookByEmail[person.email]) || sleeperLook({ email: person.email, nombre: person.nombre });
+          info = { nombre: person.nombre, look, presente };
+        }
+        out.push({ key: m.id + '-' + i, x: m.x + s.dx + SEAT / 2, y: m.y + s.dy + SEAT / 2, info });
       });
     });
     return out;
-  }, [mesas, presentesPorMesa, session]);
+  }, [mesas, presentesPorMesa, session, emailByName, lookByEmail, presentEmails]);
+
+  const sittingRef = useRef(true); sittingRef.current = sitting;
+  const seatRef = useRef([]); seatRef.current = seatPeople;
 
   const look = {
-    piel: equipado.piel, pelo: equipado.pelo, peloColor: equipado.pelo_color,
+    piel: equipado.piel, pelo: equipado.pelo, peloColor: equipado.pelo_color, cara: equipado.cara,
     outfit: itemById(equipado.outfit) || itemById('out_bata'),
     sombrero: itemById(equipado.sombrero),
     aura: itemById(equipado.aura),
@@ -333,10 +438,10 @@ export default function GameView({ go }) {
         <div style={{
           position: 'absolute', top: 0, left: 0, width: STAGE_W, height: STAGE_H, transformOrigin: 'top left',
           borderRadius: 4, border: '5px solid #9A8C73', backgroundColor: '#E9E1D2', overflow: 'hidden',
-          backgroundImage: 'linear-gradient(45deg, rgba(120,100,70,0.07) 25%, transparent 25%, transparent 75%, rgba(120,100,70,0.07) 75%), linear-gradient(45deg, rgba(120,100,70,0.07) 25%, transparent 25%, transparent 75%, rgba(120,100,70,0.07) 75%)',
-          backgroundSize: '44px 44px, 44px 44px',
-          backgroundPosition: '0 0, 22px 22px',
-          boxShadow: 'inset 0 0 0 4px rgba(255,255,255,0.4), inset 0 0 46px rgba(80,60,30,0.16)',
+          backgroundImage: 'linear-gradient(rgba(120,100,70,0.11) 1px, transparent 1px), linear-gradient(90deg, rgba(120,100,70,0.11) 1px, transparent 1px), linear-gradient(45deg, rgba(120,100,70,0.06) 25%, transparent 25%, transparent 75%, rgba(120,100,70,0.06) 75%), linear-gradient(45deg, rgba(120,100,70,0.06) 25%, transparent 25%, transparent 75%, rgba(120,100,70,0.06) 75%)',
+          backgroundSize: '44px 44px, 44px 44px, 88px 88px, 88px 88px',
+          backgroundPosition: '0 0, 0 0, 0 0, 44px 44px',
+          boxShadow: 'inset 0 0 0 4px rgba(255,255,255,0.4), inset 0 14px 22px rgba(80,60,30,0.12), inset 0 0 46px rgba(80,60,30,0.14)',
         }}>
           <div style={{ position: 'absolute', inset: 0, background: deskFloor.color, opacity: 0.1, pointerEvents: 'none' }} />
 
@@ -346,7 +451,12 @@ export default function GameView({ go }) {
           </div>
 
           {/* mi escritorio (decoración propia) */}
-          {decoItems.length > 0 && (
+          {decoItems.length > 0 && miMesa && (
+            <div style={{ position: 'absolute', left: miMesa.x, top: miMesa.y - 16, width: miMesa.w, display: 'flex', justifyContent: 'center', gap: 3, fontSize: 14, pointerEvents: 'none', zIndex: 4 }}>
+              {decoItems.map((d) => <span key={d.id} title={d.nombre} style={{ filter: 'drop-shadow(0 1px 0 rgba(15,23,42,0.25))' }}>{d.emoji}</span>)}
+            </div>
+          )}
+          {decoItems.length > 0 && !miMesa && (
             <div style={{ position: 'absolute', left: 8, bottom: 8, maxWidth: 150, background: 'rgba(255,255,255,0.85)', border: '1px solid #CBD5E1', borderRadius: 8, padding: '5px 8px' }}>
               <div style={{ fontSize: 8.5, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{t('game.myDesk')}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, fontSize: 15 }}>
@@ -365,6 +475,9 @@ export default function GameView({ go }) {
             </div>
           </div>
 
+          {/* zonas ambientales */}
+          {FIXTURES.map((f) => <Fixture key={f.id} f={f} />)}
+
           {/* mobiliario */}
           {(mesas || []).map((m) => <Furniture key={m.id} m={m} highlight={nearModule && nearModule.id === m.id} />)}
 
@@ -372,9 +485,10 @@ export default function GameView({ go }) {
           {seatPeople.map((s) => (
             <div key={s.key} style={{ position: 'absolute', left: s.x - SEAT / 2, top: s.y - SEAT / 2 }}>
               <Chair />
-              {s.person && (
-                <div style={{ position: 'absolute', left: SEAT / 2 - AV / 2, top: -AV + 4 }}>
-                  <Avatar look={sleeperLook(s.person)} sitting sleeping name={nombreDe ? nombreDe(s.person.email) : s.person.nombre} />
+              {s.info && (
+                <div style={{ position: 'absolute', left: SEAT / 2 - AV / 2, top: -AV + 4, opacity: s.info.presente ? 1 : 0.6 }}>
+                  <Avatar look={s.info.look} sitting sleeping={!s.info.presente} name={s.info.nombre} />
+                  <span title={s.info.presente ? 'Presente ahora' : 'Ausente'} style={{ position: 'absolute', top: 0, right: 3, width: 8, height: 8, borderRadius: '50%', background: s.info.presente ? '#22C55E' : '#94A3B8', border: '1.5px solid #fff', zIndex: 5 }} />
                 </div>
               )}
             </div>
@@ -404,12 +518,29 @@ export default function GameView({ go }) {
       </div>
 
       <p style={{ textAlign: 'center', fontSize: 12.5, color: T.muted, marginTop: 12 }}>
-        ⌨️ {t('game.move')} · {t('game.enterHint')} · 🏪 {t('game.shopHint')}
+        ⌨️ {t('game.move')} · {t('game.enterHint')} · 🪑 F {t('game.sit')} · 🏪 {t('game.shopHint')}
       </p>
+
+      {/* leyenda de zonas */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 8 }}>
+        {[
+          ['📦', t('menu.inventory')], ['🗄️', 'Almacén'], ['🌾', 'Granja FPGA'], ['🦾', 'Brazo'],
+          ['☕', 'Café'], ['📋', 'Junta'], ['🔧', 'Soldadura'], ['🏪', 'OXXO'],
+        ].map(([icon, lbl]) => (
+          <span key={lbl} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: T.inkSoft, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 20, padding: '4px 10px' }}>
+            <span style={{ fontSize: 13 }}>{icon}</span>{lbl}
+          </span>
+        ))}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: T.inkSoft, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 20, padding: '4px 10px' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22C55E' }} /> {t('game.present')}
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#94A3B8', marginLeft: 6 }} /> {t('game.away')}
+        </span>
+      </div>
 
       {shopOpen && <OxxoShop t={t} monedas={monedas} comprados={comprados} deco={deco} equipado={equipado} insignia={insignia} gastado={gastado} onBuy={comprar} onClose={() => { setShopOpen(false); const np = { x: DOOR.x - 50, y: posRef.current.y }; posRef.current = np; setPos(np); atDoorRef.current = false; setAtDoor(false); }} />}
       {custOpen && <Customizer t={t} equipado={equipado} onLook={setLook} onClose={() => setCustOpen(false)} />}
       {quizOpen && <QuizModal t={t} session={session} preguntas={activas} mis={misRespuestas} onResponder={responder} onCrear={nuevaPregunta} onClose={() => setQuizOpen(false)} />}
+      {modulo && <ModuloModal t={t} modulo={modulo} inv={inv} invAccess={invAccess} go={go} onClose={() => setModulo(null)} />}
 
       <style>{`@keyframes gv-pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
         @keyframes gv-z{0%,100%{transform:translateY(0);opacity:.5}50%{transform:translateY(-4px);opacity:1}}
@@ -434,8 +565,10 @@ function Furniture({ m, highlight }) {
         border: `2px solid ${highlight ? '#0F172A' : 'rgba(70,45,20,0.45)'}`,
         backgroundImage: 'repeating-linear-gradient(90deg, rgba(90,55,20,0.10) 0 2px, transparent 2px 13px), linear-gradient(180deg, rgba(255,255,255,0.28), rgba(0,0,0,0.06))',
         boxShadow: highlight ? '0 0 0 3px rgba(15,23,42,0.25), 0 4px 0 rgba(70,45,20,0.3)' : 'inset 0 2px 0 rgba(255,255,255,0.3), 0 4px 0 rgba(70,45,20,0.3)',
-        display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', justifyContent: 'center',
-        clipPath: isL ? 'polygon(0 0, 62% 0, 62% 55%, 100% 55%, 100% 100%, 0 100%)' : 'none',
+        display: 'flex', flexDirection: 'column', gap: 2,
+        alignItems: isL ? 'flex-end' : 'center', justifyContent: isL ? 'flex-start' : 'center',
+        paddingTop: isL ? 6 : 0, paddingRight: isL ? 7 : 0,
+        clipPath: isL ? L_CLIP : 'none',
       }}>
         {m.pc && (
           <div style={{ position: 'absolute', top: 4, right: 5, width: 18, height: 13, background: '#1E293B', borderRadius: 2, border: '1.5px solid #0F172A', boxShadow: 'inset 0 0 0 2px #38BDF8' }}>
@@ -461,6 +594,40 @@ function Furniture({ m, highlight }) {
       <span style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,0.96)', textShadow: '0 1px 1px rgba(0,0,0,0.35)', pointerEvents: 'none', padding: 2, textAlign: 'center' }}>{m.nombre}</span>
     </div>
   );
+}
+
+/* ---------- zonas ambientales ---------- */
+function Fixture({ f }) {
+  if (f.kind === 'cafe') {
+    return (
+      <div style={{ position: 'absolute', left: f.x, top: f.y, width: f.w, height: f.h, background: '#6B4F3A', borderRadius: 4, border: '2px solid #463323', boxShadow: 'inset 0 3px 0 rgba(255,255,255,0.14), 0 3px 0 rgba(0,0,0,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <span style={{ position: 'absolute', left: 6, top: 5, width: 16, height: 22, background: '#33414F', borderRadius: 3, border: '1.5px solid #1E293B' }} />
+        <span style={{ fontSize: 16 }}>☕</span>
+        <span style={{ fontSize: 9, fontWeight: 800, color: '#F5E6D3', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Café</span>
+      </div>
+    );
+  }
+  if (f.kind === 'junta') {
+    return (
+      <div style={{ position: 'absolute', left: f.x, top: f.y, width: f.w, height: f.h }}>
+        <div style={{ position: 'absolute', inset: 0, borderRadius: 14, background: 'repeating-linear-gradient(45deg,#CBD5E1,#CBD5E1 8px,#BCC7D6 8px,#BCC7D6 16px)', opacity: 0.5, border: '2px dashed rgba(71,85,105,0.32)' }} />
+        <div style={{ position: 'absolute', top: -7, left: '50%', transform: 'translateX(-50%)', width: f.w * 0.7, height: 15, background: '#16352A', borderRadius: 3, border: '2px solid #0F2C22', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 7, fontWeight: 800, color: '#BBF7D0', letterSpacing: '0.06em' }}>PIZARRÓN</span>
+        </div>
+        <span style={{ position: 'absolute', bottom: 5, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 800, color: 'rgba(51,65,85,0.72)', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>📋 Junta</span>
+      </div>
+    );
+  }
+  if (f.kind === 'solda') {
+    return (
+      <div style={{ position: 'absolute', left: f.x, top: f.y, width: f.w, height: f.h, background: '#8A9099', borderRadius: 4, border: '2px solid #565E6A', boxShadow: 'inset 0 3px 0 rgba(255,255,255,0.16), 0 3px 0 rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <span style={{ position: 'absolute', right: 7, top: -6, fontSize: 11, opacity: 0.7 }}>💨</span>
+        <span style={{ fontSize: 15 }}>🔧</span>
+        <span style={{ fontSize: 8.5, fontWeight: 800, color: '#1F2937', textTransform: 'uppercase', letterSpacing: '0.03em', textAlign: 'center', lineHeight: 1.1 }}>Estación<br />soldadura</span>
+      </div>
+    );
+  }
+  return null;
 }
 
 function Chair() {
@@ -549,8 +716,13 @@ function Customizer({ t, equipado, onLook, onClose }) {
         </div>
         <p style={{ fontSize: 12, color: T.muted, margin: '0 0 16px' }}>{t('game.free')} · {t('game.previewHint')}</p>
         <div style={{ display: 'grid', placeItems: 'center', padding: '14px 0 22px', background: '#F8FAFC', borderRadius: 12, marginBottom: 16 }}>
-          <Avatar look={{ piel: equipado.piel, pelo: equipado.pelo, peloColor: equipado.pelo_color, outfit: itemById(equipado.outfit) || itemById('out_bata'), sombrero: itemById(equipado.sombrero), aura: itemById(equipado.aura) }} name="" you />
+          <Avatar look={{ piel: equipado.piel, pelo: equipado.pelo, peloColor: equipado.pelo_color, cara: equipado.cara, outfit: itemById(equipado.outfit) || itemById('out_bata'), sombrero: itemById(equipado.sombrero), aura: itemById(equipado.aura) }} name="" you />
         </div>
+        <Group label={t('game.face')}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {CARAS.map((c) => <button key={c.id} onClick={() => onLook({ cara: c.id })} style={chipBtn(equipado.cara === c.id)}>{c.nombre}</button>)}
+          </div>
+        </Group>
         <Group label={t('game.hair')}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {PELOS.map((p) => <button key={p.id} onClick={() => onLook({ pelo: p.id })} style={chipBtn(equipado.pelo === p.id)}>{p.nombre}</button>)}
@@ -687,16 +859,127 @@ const btnHud = (bg, fg, bd) => ({ display: 'flex', alignItems: 'center', gap: 7,
 const qlbl = { display: 'block', fontSize: 11.5, fontWeight: 700, color: T.inkSoft, marginBottom: 5 };
 const qinp = { width: '100%', padding: '9px 11px', borderRadius: 9, border: `1px solid ${T.border}`, fontSize: 13, fontFamily: T.font, outline: 'none', boxSizing: 'border-box', color: T.ink };
 
+/* ---------- panel de m\u00f3dulo (dentro del juego) ---------- */
+const MODULO_META = {
+  inventario: { icon: '\ud83d\udce6', titulo: 'Inventario', vista: 'table' },
+  almacen: { icon: '\ud83d\uddc4\ufe0f', titulo: 'Almac\u00e9n', vista: 'visual' },
+  granja: { icon: '\ud83c\udf3e', titulo: 'Granja FPGA', vista: 'granja' },
+  brazo: { icon: '\ud83e\uddbe', titulo: 'Brazo robot', vista: 'granja' },
+};
+
+function ModuloModal({ t, modulo, inv, invAccess, go, onClose }) {
+  const [q, setQ] = useState('');
+  const meta = MODULO_META[modulo.kind] || { icon: '\u2b1b', titulo: modulo.nombre, vista: null };
+  const esInv = modulo.kind === 'inventario';
+  const esAlm = modulo.kind === 'almacen';
+
+  const items = useMemo(() => {
+    if (esInv) {
+      if (!invAccess) return [];
+      const needle = q.trim().toLowerCase();
+      return (inv.comps || [])
+        .filter((c) => !needle || [c.codigoInterno, c.codigoFabricante, c.descripcion, c.tipo].some((v) => String(v || '').toLowerCase().includes(needle)))
+        .slice(0, 250);
+    }
+    if (esAlm) return inv.looseInMesa ? inv.looseInMesa('almacen') : [];
+    return [];
+  }, [esInv, esAlm, q, inv, invAccess]);
+
+  const contenedores = esAlm && inv.containersInMesa ? inv.containersInMesa('almacen') : [];
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 500, display: 'grid', placeItems: 'center', padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 640, maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: `1px solid ${T.border}` }}>
+        <div style={{ padding: '16px 22px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 22 }}>{meta.icon}</span>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: T.ink, margin: 0 }}>{meta.titulo}</h2>
+            <div style={{ fontSize: 12, color: T.muted }}>{modulo.nombre}</div>
+          </div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${T.border}`, background: '#fff', cursor: 'pointer', fontSize: 15, color: T.muted }}>\u2715</button>
+        </div>
+
+        <div style={{ padding: '16px 22px', overflowY: 'auto' }}>
+          {esInv && !invAccess && (
+            <div style={{ textAlign: 'center', padding: '28px 10px', color: T.muted }}>
+              <div style={{ fontSize: 30, marginBottom: 8 }}>\ud83d\udd12</div>
+              <p style={{ fontSize: 13.5, margin: 0 }}>Tu cuenta a\u00fan no tiene acceso al inventario. Pide al administrador que te habilite.</p>
+            </div>
+          )}
+
+          {esInv && invAccess && (
+            <>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar c\u00f3digo, descripci\u00f3n o tipo\u2026" style={{ width: '100%', padding: '9px 12px', borderRadius: 9, border: `1px solid ${T.border}`, fontSize: 13, fontFamily: T.font, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
+              <CompactList items={items} inv={inv} />
+            </>
+          )}
+
+          {esAlm && (
+            <>
+              {contenedores.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Contenedores aqu\u00ed</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {contenedores.map((c) => (
+                      <span key={c.id} style={{ fontSize: 12.5, fontWeight: 600, color: T.inkSoft, background: '#F1F5F9', border: `1px solid ${T.border}`, borderRadius: 8, padding: '6px 11px' }}>\ud83d\udce6 {c.name || c.id}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Componentes sueltos aqu\u00ed</div>
+              {items.length ? <CompactList items={items} inv={inv} /> : <p style={{ fontSize: 13, color: T.muted, margin: 0 }}>No hay componentes sueltos registrados en el almac\u00e9n.</p>}
+            </>
+          )}
+
+          {!esInv && !esAlm && (
+            <div style={{ textAlign: 'center', padding: '24px 10px', color: T.muted }}>
+              <p style={{ fontSize: 13.5, margin: 0, lineHeight: 1.5 }}>Este m\u00f3dulo se gestiona en su vista completa. \u00c1brela cuando quieras; tu avatar te espera aqu\u00ed.</p>
+            </div>
+          )}
+        </div>
+
+        {meta.vista && (
+          <div style={{ padding: '14px 22px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <button onClick={onClose} style={{ padding: '9px 16px', borderRadius: 9, border: `1px solid ${T.border}`, background: '#fff', color: T.inkSoft, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: T.font }}>Seguir en el juego</button>
+            <button onClick={() => { onClose(); go && go(meta.vista); }} style={{ padding: '9px 16px', borderRadius: 9, border: 'none', background: T.primary, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: T.font }}>Abrir vista completa \u2192</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CompactList({ items, inv }) {
+  if (!items.length) return <p style={{ fontSize: 13, color: T.muted, textAlign: 'center', padding: 20, margin: 0 }}>Sin resultados.</p>;
+  return (
+    <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
+      {items.map((c) => (
+        <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '78px 1fr auto', gap: 10, alignItems: 'center', padding: '9px 12px', borderBottom: `1px solid ${T.borderSoft || '#F1F5F9'}` }}>
+          <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.inkSoft }}>{c.codigoInterno}</span>
+          <span style={{ fontSize: 12.5, color: T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {c.descripcion}
+            <span style={{ marginLeft: 8, fontSize: 11, color: inv.tcMap ? (inv.tcMap[c.tipo] || T.muted) : T.muted, fontWeight: 600 }}>{c.tipo}</span>
+          </span>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: T.ink }}>{c.cantidad}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ---------- helpers ---------- */
 function hits(cx, cy, obstaculos) {
   const half = AV / 2 - 4;
   const l = cx - half, r = cx + half, tp = cy - half + 6, b = cy + half;
+  const overlap = (ox, oy, ow, oh) => (r > ox && l < ox + ow && b > oy && tp < oy + oh);
   return obstaculos.some((o) => {
-    if (!(r > o.x && l < o.x + o.w && b > o.y && tp < o.y + o.h)) return false;
-    // Mesa en L: la esquina superior derecha está vacía (muesca).
+    if (!overlap(o.x, o.y, o.w, o.h)) return false;
+    // Mesa en L (mismo recorte que el croquis): sólida en la banda superior
+    // (0–48% alto) y en la columna derecha (72–100% ancho); hueco abajo-izq.
     if (o.forma === 'L') {
-      const notchX = o.x + o.w * 0.62, notchY = o.y + o.h * 0.55;
-      if (l > notchX && b < notchY) return false; // dentro de la muesca → sin colisión
+      const topBand = overlap(o.x, o.y, o.w, o.h * 0.48);
+      const rightCol = overlap(o.x + o.w * 0.72, o.y, o.w * 0.28, o.h);
+      return topBand || rightCol;
     }
     return true;
   });

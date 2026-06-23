@@ -93,8 +93,17 @@ export function semanaId(d = new Date()) {
 export const EQUIPADO_DEFAULT = {
   outfit: 'out_bata', sombrero: 'hat_none', mascota: 'pet_none', escritorio: 'desk_gris', aura: 'aura_none',
   // personalización gratuita
-  pelo: 'pelo_corto', pelo_color: '#3B2A20', piel: '#F2C9A0',
+  pelo: 'pelo_corto', pelo_color: '#3B2A20', piel: '#F2C9A0', cara: 'cara_normal',
 };
+
+// Expresiones de rostro gratuitas (el render vive en Avatar.jsx).
+export const CARAS = [
+  { id: 'cara_normal', nombre: 'Normal' },
+  { id: 'cara_feliz', nombre: 'Feliz' },
+  { id: 'cara_serio', nombre: 'Serio' },
+  { id: 'cara_guino', nombre: 'Guiño' },
+  { id: 'cara_kawaii', nombre: 'Kawaii' },
+];
 
 // Estilos de pelo gratuitos (id + etiqueta). El render vive en GameView.
 export const PELOS = [

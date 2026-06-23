@@ -35,11 +35,26 @@ export function Avatar({ look, dir = 'down', name, sleeping, sitting, moving, ph
       <Hair style={look.pelo} color={peloColor} />
       <div style={{ position: 'relative', width: 16, height: 14, background: piel, border: '2px solid #11203a', borderRadius: 6, margin: '-2px auto 0', zIndex: 2 }}>
         {!sleeping ? (
-          <>
-            <span style={{ position: 'absolute', top: 5, left: eyeX, width: 2.4, height: 2.4, background: '#11203a', borderRadius: '50%' }} />
-            <span style={{ position: 'absolute', top: 5, left: eyeX + 4.5, width: 2.4, height: 2.4, background: '#11203a', borderRadius: '50%' }} />
-            <span style={{ position: 'absolute', top: 9.5, left: 6, width: 4, height: 1.6, background: 'rgba(180,90,90,0.6)', borderRadius: 2 }} />
-          </>
+          (() => {
+            const cara = look.cara || 'cara_normal';
+            const big = cara === 'cara_kawaii';
+            const eD = big ? 3.2 : 2.4;
+            return (
+              <>
+                <span style={{ position: 'absolute', top: 5, left: eyeX, width: eD, height: eD, background: '#11203a', borderRadius: '50%' }} />
+                {cara === 'cara_guino'
+                  ? <span style={{ position: 'absolute', top: 6.4, left: eyeX + 4, width: 3.6, height: 1.6, background: '#11203a', borderRadius: 2 }} />
+                  : <span style={{ position: 'absolute', top: 5, left: eyeX + 4.5, width: eD, height: eD, background: '#11203a', borderRadius: '50%' }} />}
+                {big && (
+                  <>
+                    <span style={{ position: 'absolute', top: 8.6, left: eyeX - 2, width: 2.6, height: 1.6, background: 'rgba(244,114,182,0.6)', borderRadius: 2 }} />
+                    <span style={{ position: 'absolute', top: 8.6, left: eyeX + 7, width: 2.6, height: 1.6, background: 'rgba(244,114,182,0.6)', borderRadius: 2 }} />
+                  </>
+                )}
+                <span style={faceMouth(cara)} />
+              </>
+            );
+          })()
         ) : (
           <span style={{ position: 'absolute', top: 7, left: 4, right: 4, height: 2, borderTop: '2px solid #11203a' }} />
         )}
@@ -59,6 +74,18 @@ export function Avatar({ look, dir = 'down', name, sleeping, sitting, moving, ph
       {name !== '' && <div style={{ fontSize: 9, fontWeight: 800, color: you ? '#0F172A' : '#475569', marginTop: 2, whiteSpace: 'nowrap', textShadow: '0 1px 0 rgba(255,255,255,0.85)' }}>{(name || '').split(' ')[0]}</div>}
     </div>
   );
+}
+
+function faceMouth(cara) {
+  if (cara === 'cara_feliz')
+    return { position: 'absolute', top: 8.4, left: 4.5, width: 7, height: 3.4, border: '1.6px solid rgba(150,70,70,0.75)', borderTop: 'none', borderRadius: '0 0 7px 7px' };
+  if (cara === 'cara_serio')
+    return { position: 'absolute', top: 10, left: 6, width: 4, height: 1.6, background: '#6B4A4A', borderRadius: 1 };
+  if (cara === 'cara_guino')
+    return { position: 'absolute', top: 8.8, left: 5, width: 6, height: 2.6, border: '1.6px solid rgba(150,70,70,0.75)', borderTop: 'none', borderRadius: '0 0 6px 6px' };
+  if (cara === 'cara_kawaii')
+    return { position: 'absolute', top: 9.4, left: 6.4, width: 3.2, height: 2.8, background: 'rgba(150,70,70,0.7)', borderRadius: '0 0 4px 4px' };
+  return { position: 'absolute', top: 9.5, left: 6, width: 4, height: 1.6, background: 'rgba(180,90,90,0.6)', borderRadius: 2 };
 }
 
 function Hair({ style, color }) {
@@ -105,7 +132,7 @@ export function sleeperLook(person) {
 // Construye el objeto `look` que espera <Avatar> a partir de un `equipado`.
 export function lookFromEquipado(equipado = {}) {
   return {
-    piel: equipado.piel, pelo: equipado.pelo, peloColor: equipado.pelo_color,
+    piel: equipado.piel, pelo: equipado.pelo, peloColor: equipado.pelo_color, cara: equipado.cara,
     outfit: itemById(equipado.outfit) || itemById('out_bata'),
     sombrero: itemById(equipado.sombrero),
     aura: itemById(equipado.aura),

@@ -44,7 +44,7 @@ const DICT = {
 
     'game.title': 'El laboratorio: EL JUEGO', 'game.coins': '{n} monedas', 'game.shop': 'Tienda',
     'game.pets': 'Mascotas', 'game.employee': 'Empleado de la semana', 'game.move': 'Muévete con WASD',
-    'game.you': 'Tú', 'game.buy': 'Comprar', 'game.owned': 'Adquirido', 'game.equip': 'Equipar', 'game.lounge': 'Descanso',
+    'game.you': 'Tú', 'game.buy': 'Comprar', 'game.owned': 'Adquirido', 'game.equip': 'Equipar', 'game.lounge': 'Descanso', 'game.sit': 'sentarse', 'game.present': 'Presente', 'game.away': 'Ausente', 'game.face': 'Expresión',
     'game.equipped': 'Equipado', 'game.notEnough': 'Monedas insuficientes',
     'game.earnHint': 'Ganas 10 monedas por cada 30 min dentro del laboratorio.',
     'game.mustCheckin': 'Haz check-in en una mesa para entrar al laboratorio virtual.',
@@ -110,7 +110,7 @@ const DICT = {
 
     'game.title': 'The Lab: THE GAME', 'game.coins': '{n} coins', 'game.shop': 'Shop',
     'game.pets': 'Pets', 'game.employee': 'Employee of the week', 'game.move': 'Move with WASD',
-    'game.you': 'You', 'game.buy': 'Buy', 'game.owned': 'Owned', 'game.equip': 'Equip', 'game.lounge': 'Lounge',
+    'game.you': 'You', 'game.buy': 'Buy', 'game.owned': 'Owned', 'game.equip': 'Equip', 'game.lounge': 'Lounge', 'game.sit': 'sit', 'game.present': 'Present', 'game.away': 'Away', 'game.face': 'Expression',
     'game.equipped': 'Equipped', 'game.notEnough': 'Not enough coins',
     'game.earnHint': 'Earn 10 coins for every 30 min inside the lab.',
     'game.mustCheckin': 'Check in at a table to enter the virtual lab.',
