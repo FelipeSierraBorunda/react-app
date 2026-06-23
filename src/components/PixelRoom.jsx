@@ -54,11 +54,11 @@ export default function PixelRoom({
       const wood = (m.color && m.color !== '#ffffff') ? m.color : '#c89a5a';
       const wsh = shade(wood, -0.25), whi = shade(wood, 0.15);
       const dr = (rx, ry, rw, rh) => {
-        ctx.fillStyle = wsh; ctx.fillRect(rx, ry+rh-3, rw, 3);            // sombra base
+        ctx.fillStyle = wsh; ctx.fillRect(rx, ry+rh-3, rw, 3);
         ctx.fillStyle = wood; ctx.fillRect(rx, ry, rw, rh-3);
-        ctx.fillStyle = whi; ctx.fillRect(rx, ry, rw, 2);                 // borde luz
+        ctx.fillStyle = whi; ctx.fillRect(rx, ry, rw, 2);
         ctx.fillStyle='rgba(60,35,10,0.12)';
-        for (let gx=rx+5;gx<rx+rw-2;gx+=8) ctx.fillRect(gx,ry+3,1,rh-8); // veta
+        for (let gx=rx+5;gx<rx+rw-2;gx+=8) ctx.fillRect(gx,ry+3,1,rh-8);
         ctx.strokeStyle='#5a3a18'; ctx.lineWidth=1.2;
         ctx.strokeRect(rx+0.5,ry+0.5,rw-1,rh-1);
       };
@@ -69,18 +69,61 @@ export default function PixelRoom({
       } else {
         dr(m.x, m.y, m.w, m.h);
       }
-      // monitor (PC)
+      // monitor (PC) + teclado
       if (m.pc) {
-        const mx = m.x+m.w-24, my = m.y+3;
-        ctx.fillStyle='#1a2236'; ctx.fillRect(mx,my,20,13);
-        ctx.fillStyle='#2a4a8c'; ctx.fillRect(mx+1,my+1,18,10);
-        ctx.fillStyle='rgba(120,180,255,0.3)'; ctx.fillRect(mx+1,my+1,18,3);
-        ctx.fillStyle='#3a4252'; ctx.fillRect(mx+7,my+13,6,3);
+        const mx = m.x+m.w-26, my = m.y+3;
+        ctx.fillStyle='#1a2236'; ctx.fillRect(mx,my,22,14);
+        ctx.fillStyle='#2a4a8c'; ctx.fillRect(mx+1,my+1,20,11);
+        ctx.fillStyle='rgba(120,180,255,0.35)'; ctx.fillRect(mx+1,my+1,20,3);
+        ctx.fillStyle='#3a4252'; ctx.fillRect(mx+7,my+14,8,3);
+        // teclado
+        ctx.fillStyle='#c8c0b0'; ctx.fillRect(mx-14,my+6,12,7);
+        ctx.fillStyle='#b0a898'; ctx.fillRect(mx-13,my+7,10,2); ctx.fillRect(mx-13,my+10,10,2);
       }
-      // nombre
+      // cables/equipos pequeños en otras mesas
+      if (!m.pc && m.w > 60) {
+        ctx.fillStyle='#8a7a6a'; ctx.fillRect(m.x+6,m.y+4,8,4);
+        ctx.fillStyle='#6a5a4a'; ctx.fillRect(m.x+7,m.y+5,6,2);
+        ctx.fillStyle='rgba(50,30,10,0.3)'; ctx.fillRect(m.x+14,m.y+5,20,1);
+      }
       ctx.font = '7px "Silkscreen",monospace'; ctx.textAlign='center';
       ctx.fillStyle='rgba(60,35,10,0.65)';
       ctx.fillText(m.nombre, m.x+m.w/2, m.y+m.h/2+2); ctx.textAlign='left';
+    }
+
+    // ---- dispensador de agua (pared izquierda) ----
+    function drawWaterCooler(x, y) {
+      // base blanca
+      ctx.fillStyle='#e8e8e8'; ctx.fillRect(x,y,18,28);
+      ctx.fillStyle='#f8f8f8'; ctx.fillRect(x+1,y+1,16,20);
+      // botellón azul
+      ctx.fillStyle='#a0c8e8'; ctx.fillRect(x+4,y-14,10,16);
+      ctx.fillStyle='#c0dff5'; ctx.fillRect(x+5,y-13,4,6);
+      ctx.fillStyle='#78a8c8'; ctx.fillRect(x+4,y+1,10,2);
+      // grifo
+      ctx.fillStyle='#cc4444'; ctx.fillRect(x+4,y+14,4,3);
+      ctx.fillStyle='#4444cc'; ctx.fillRect(x+10,y+14,4,3);
+      // bandeja
+      ctx.fillStyle='#c0c0c0'; ctx.fillRect(x+2,y+22,14,3);
+      ctx.strokeStyle='#a0a0a0'; ctx.lineWidth=1;
+      ctx.strokeRect(x+0.5,y+0.5,17,27);
+    }
+
+    // ---- pizarrón blanco ----
+    function drawWhiteboard(x, y, w, h) {
+      // marco
+      ctx.fillStyle='#8a7a5a'; ctx.fillRect(x-3,y-3,w+6,h+6);
+      ctx.fillStyle='#f5f5f0'; ctx.fillRect(x,y,w,h);
+      // borde interno
+      ctx.strokeStyle='#c8c0a8'; ctx.lineWidth=1; ctx.strokeRect(x+1,y+1,w-2,h-2);
+      // líneas simuladas de texto
+      ctx.fillStyle='rgba(60,80,180,0.4)';
+      ctx.fillRect(x+8,y+6,w-16,1.5);
+      ctx.fillRect(x+8,y+11,w-24,1.5);
+      ctx.fillRect(x+8,y+16,w-20,1.5);
+      ctx.fillRect(x+8,y+21,w-18,1.5);
+      // soporte
+      ctx.fillStyle='#6a5a3a'; ctx.fillRect(x+w/2-8,y+h,16,4);
     }
 
     // ---- módulos especiales ----
@@ -227,6 +270,18 @@ export default function PixelRoom({
       ctx.strokeRect(3,3,STAGE_W-6,STAGE_H-6);
       ctx.strokeStyle='#c8b890'; ctx.lineWidth=2;
       ctx.strokeRect(8,8,STAGE_W-16,STAGE_H-16);
+
+      // letrero "LABORATORIO DE INVESTIGACIÓN"
+      ctx.fillStyle='#f5f0e0'; ctx.fillRect(10,4,320,20);
+      ctx.strokeStyle='#8a7050'; ctx.lineWidth=1.5; ctx.strokeRect(10,4,320,20);
+      ctx.font='bold 9px "Silkscreen",monospace'; ctx.fillStyle='#2a1a0a'; ctx.textAlign='left';
+      ctx.fillText('LABORATORIO DE INVESTIGACIÓN', 16, 18); ctx.textAlign='left';
+
+      // ---- elementos fijos del lab ----
+      // dispensador de agua (pared izquierda, junto al inventario)
+      draws.push({ y: 120, fn: () => drawWaterCooler(0, 90) });
+      // pizarrón blanco (área central)
+      draws.push({ y: 290, fn: () => drawWhiteboard(460, 160, 160, 80) });
 
       // ---- OXXO físico ----
       if(s.doorRect) drawOxxo(s.doorRect, false);

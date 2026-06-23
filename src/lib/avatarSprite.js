@@ -68,7 +68,7 @@ export function drawAvatar(ctx, cx, cy, o = {}, S = 3) {
     P(4, 19, 8, 4, pants); P(4, 19, 8, 1, pantsSh); P(4, 22, 8, 2, shoe);
   }
 
-  // ---------- TORSO (camisa) ----------
+  // ---------- TORSO (camisa / bata) ----------
   const torsoTop = 11, torsoH = sitting ? 7 : 8;
   P(3, torsoTop, 10, torsoH, OUT);                 // contorno
   P(4, torsoTop, 8, torsoH - 1, shirt);            // relleno
@@ -76,6 +76,13 @@ export function drawAvatar(ctx, cx, cy, o = {}, S = 3) {
   P(4, torsoTop + torsoH - 2, 8, 1, shirtSh);      // sombra bajo
   // acento (franja/cierre) para outfits premium
   if (accent) { P(7, torsoTop + 1, 2, torsoH - 2, accent); }
+  // bata/lab coat: collar en V visible cuando la camisa es blanca/clara
+  const isLabCoat = !accent && (shirt === '#E2E8F0' || shirt === '#F6F8FC' || shirt === '#EEF2F7' || shirt === '#FFFFFF' || shirt === '#ffffff' || shirt.toLowerCase() === '#e2e8f0' || shirt.toLowerCase() === '#eef2f7');
+  if (isLabCoat && dir !== 'up') {
+    P('#d0d8e8', 6, torsoTop + 1, 2, torsoH - 2);   // solapa izquierda
+    P('#d0d8e8', 8, torsoTop + 1, 2, 3);             // solapa derecha (corta)
+    P(OUT, 7, torsoTop + 1, 1, torsoH - 2);          // línea central bata
+  }
   // brazos / mangas
   const armSwing = sitting ? 0 : step;
   P(2, torsoTop + 1, 2, 5, OUT); P(2, torsoTop + 1 - armSwing, 2, 5, shade(shirt, -0.08));
