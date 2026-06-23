@@ -102,6 +102,20 @@ export default function GameView({ go }) {
     })();
   }, [session]);
 
+  // ---------- refresh periódico de avatares (30 s) ----------
+  // Así los cambios de ropa/peinado de cualquier jugador se ven
+  // en los demás sin necesidad de recargar la página.
+  useEffect(() => {
+    if (!session) return;
+    const iv = setInterval(async () => {
+      try {
+        const { rows } = await fetchJuego(session.email);
+        if (rows) setJuegoRows(rows);
+      } catch (_) {}
+    }, 30000);
+    return () => clearInterval(iv);
+  }, [session]);
+
   // Ref con el estado COMPLETO del progreso. El upsert de Supabase usa
   // merge-duplicates, que REEMPLAZA toda la fila: si guardas solo {monedas}
   // se borran comprados/deco/equipado. Por eso cada guardado envía la fila
@@ -173,7 +187,16 @@ export default function GameView({ go }) {
     // quitar/poner una pieza ya comprada del escritorio no cuesta; comprar si no se tiene.
     if (!deco.includes(item.id)) return comprar(item);
   }
-  function setLook(patch) { const ne = { ...equipado, ...patch }; setEquipado(ne); persist({ equipado: ne }); }
+  function setLook(patch) {
+    const ne = { ...equipado, ...patch };
+    setEquipado(ne);
+    persist({ equipado: ne });
+    // actualiza tu propia fila en juegoRows de inmediato para que tu
+    // sprite cambie en el mapa sin esperar el refresh de 30 s
+    setJuegoRows((prev) => prev.map((r) =>
+      r.email === session?.email ? { ...r, equipado: ne } : r
+    ));
+  }
 
   // ---------- quiz ----------
   const misRespuestas = useMemo(() => {
@@ -787,17 +810,17 @@ const btnHud = (bg, fg, bd) => ({ display: 'flex', alignItems: 'center', gap: 7,
 const qlbl = { display: 'block', fontSize: 11.5, fontWeight: 700, color: T.inkSoft, marginBottom: 5 };
 const qinp = { width: '100%', padding: '9px 11px', borderRadius: 9, border: `1px solid ${T.border}`, fontSize: 13, fontFamily: T.font, outline: 'none', boxSizing: 'border-box', color: T.ink };
 
-/* ---------- panel de m\u00f3dulo (dentro del juego) ---------- */
+/* ---------- panel de módulo (dentro del juego) ---------- */
 const MODULO_META = {
-  inventario: { icon: '\ud83d\udce6', titulo: 'Inventario', vista: 'table' },
-  almacen: { icon: '\ud83d\uddc4\ufe0f', titulo: 'Almac\u00e9n', vista: 'visual' },
+  inventario: { icon: '📦', titulo: 'Inventario', vista: 'table' },
+  almacen: { icon: '\ud83d\uddc4\ufe0f', titulo: 'Almacén', vista: 'visual' },
   granja: { icon: '\ud83c\udf3e', titulo: 'Granja FPGA', vista: 'granja' },
   brazo: { icon: '\ud83e\uddbe', titulo: 'Brazo robot', vista: 'granja' },
 };
 
 function ModuloModal({ t, modulo, inv, invAccess, go, onClose }) {
   const [q, setQ] = useState('');
-  const meta = MODULO_META[modulo.kind] || { icon: '\u2b1b', titulo: modulo.nombre, vista: null };
+  const meta = MODULO_META[modulo.kind] || { icon: '⬛', titulo: modulo.nombre, vista: null };
   const esInv = modulo.kind === 'inventario';
   const esAlm = modulo.kind === 'almacen';
 
@@ -824,20 +847,20 @@ function ModuloModal({ t, modulo, inv, invAccess, go, onClose }) {
             <h2 style={{ fontSize: 18, fontWeight: 800, color: T.ink, margin: 0 }}>{meta.titulo}</h2>
             <div style={{ fontSize: 12, color: T.muted }}>{modulo.nombre}</div>
           </div>
-          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${T.border}`, background: '#fff', cursor: 'pointer', fontSize: 15, color: T.muted }}>\u2715</button>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${T.border}`, background: '#fff', cursor: 'pointer', fontSize: 15, color: T.muted }}>✕</button>
         </div>
 
         <div style={{ padding: '16px 22px', overflowY: 'auto' }}>
           {esInv && !invAccess && (
             <div style={{ textAlign: 'center', padding: '28px 10px', color: T.muted }}>
-              <div style={{ fontSize: 30, marginBottom: 8 }}>\ud83d\udd12</div>
-              <p style={{ fontSize: 13.5, margin: 0 }}>Tu cuenta a\u00fan no tiene acceso al inventario. Pide al administrador que te habilite.</p>
+              <div style={{ fontSize: 30, marginBottom: 8 }}>🔒</div>
+              <p style={{ fontSize: 13.5, margin: 0 }}>Tu cuenta aún no tiene acceso al inventario. Pide al administrador que te habilite.</p>
             </div>
           )}
 
           {esInv && invAccess && (
             <>
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar c\u00f3digo, descripci\u00f3n o tipo\u2026" style={{ width: '100%', padding: '9px 12px', borderRadius: 9, border: `1px solid ${T.border}`, fontSize: 13, fontFamily: T.font, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar código, descripción o tipo…" style={{ width: '100%', padding: '9px 12px', borderRadius: 9, border: `1px solid ${T.border}`, fontSize: 13, fontFamily: T.font, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
               <CompactList items={items} inv={inv} />
             </>
           )}
@@ -846,22 +869,22 @@ function ModuloModal({ t, modulo, inv, invAccess, go, onClose }) {
             <>
               {contenedores.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Contenedores aqu\u00ed</div>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Contenedores aquí</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {contenedores.map((c) => (
-                      <span key={c.id} style={{ fontSize: 12.5, fontWeight: 600, color: T.inkSoft, background: '#F1F5F9', border: `1px solid ${T.border}`, borderRadius: 8, padding: '6px 11px' }}>\ud83d\udce6 {c.name || c.id}</span>
+                      <span key={c.id} style={{ fontSize: 12.5, fontWeight: 600, color: T.inkSoft, background: '#F1F5F9', border: `1px solid ${T.border}`, borderRadius: 8, padding: '6px 11px' }}>📦 {c.name || c.id}</span>
                     ))}
                   </div>
                 </div>
               )}
-              <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Componentes sueltos aqu\u00ed</div>
-              {items.length ? <CompactList items={items} inv={inv} /> : <p style={{ fontSize: 13, color: T.muted, margin: 0 }}>No hay componentes sueltos registrados en el almac\u00e9n.</p>}
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Componentes sueltos aquí</div>
+              {items.length ? <CompactList items={items} inv={inv} /> : <p style={{ fontSize: 13, color: T.muted, margin: 0 }}>No hay componentes sueltos registrados en el almacén.</p>}
             </>
           )}
 
           {!esInv && !esAlm && (
             <div style={{ textAlign: 'center', padding: '24px 10px', color: T.muted }}>
-              <p style={{ fontSize: 13.5, margin: 0, lineHeight: 1.5 }}>Este m\u00f3dulo se gestiona en su vista completa. \u00c1brela cuando quieras; tu avatar te espera aqu\u00ed.</p>
+              <p style={{ fontSize: 13.5, margin: 0, lineHeight: 1.5 }}>Este módulo se gestiona en su vista completa. Ábrela cuando quieras; tu avatar te espera aquí.</p>
             </div>
           )}
         </div>
@@ -869,7 +892,7 @@ function ModuloModal({ t, modulo, inv, invAccess, go, onClose }) {
         {meta.vista && (
           <div style={{ padding: '14px 22px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
             <button onClick={onClose} style={{ padding: '9px 16px', borderRadius: 9, border: `1px solid ${T.border}`, background: '#fff', color: T.inkSoft, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: T.font }}>Seguir en el juego</button>
-            <button onClick={() => { onClose(); go && go(meta.vista); }} style={{ padding: '9px 16px', borderRadius: 9, border: 'none', background: T.primary, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: T.font }}>Abrir vista completa \u2192</button>
+            <button onClick={() => { onClose(); go && go(meta.vista); }} style={{ padding: '9px 16px', borderRadius: 9, border: 'none', background: T.primary, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: T.font }}>Abrir vista completa →</button>
           </div>
         )}
       </div>
