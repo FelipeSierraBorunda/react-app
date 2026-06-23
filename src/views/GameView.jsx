@@ -25,6 +25,7 @@ import {
 } from '../lib/game.js';
 import { T } from '../theme.js';
 import { Avatar, Pet, sleeperLook, lookFromEquipado } from '../components/Avatar.jsx';
+import PixelRoom from '../components/PixelRoom.jsx';
 
 const STEP = 9, AV = 30;
 // Mismo recorte que el croquis (hueco abajo-izquierda).
@@ -462,76 +463,22 @@ export default function GameView({ go }) {
         </div>
       )}
 
-      {/* CUARTO */}
-      <div ref={useScaleToWidth(STAGE_W)} style={{ position: 'relative', margin: '0 auto' }}>
-        <div style={{
-          position: 'absolute', top: 0, left: 0, width: STAGE_W, height: STAGE_H, transformOrigin: 'top left',
-          borderRadius: 4, border: '5px solid #9A8C73', backgroundColor: '#E9E1D2', overflow: 'hidden',
-          backgroundImage: 'linear-gradient(rgba(120,100,70,0.11) 1px, transparent 1px), linear-gradient(90deg, rgba(120,100,70,0.11) 1px, transparent 1px), linear-gradient(45deg, rgba(120,100,70,0.06) 25%, transparent 25%, transparent 75%, rgba(120,100,70,0.06) 75%), linear-gradient(45deg, rgba(120,100,70,0.06) 25%, transparent 25%, transparent 75%, rgba(120,100,70,0.06) 75%)',
-          backgroundSize: '44px 44px, 44px 44px, 88px 88px, 88px 88px',
-          backgroundPosition: '0 0, 0 0, 0 0, 44px 44px',
-          boxShadow: 'inset 0 0 0 4px rgba(255,255,255,0.4), inset 0 14px 22px rgba(80,60,30,0.12), inset 0 0 46px rgba(80,60,30,0.14)',
-        }}>
-          <div style={{ position: 'absolute', inset: 0, background: deskFloor.color, opacity: 0.1, pointerEvents: 'none' }} />
-
-          {/* OXXO */}
-          <div style={{ position: 'absolute', left: DOOR.x, top: DOOR.y, width: DOOR.w, height: DOOR.h, background: '#DA291C', borderRadius: '6px 0 0 6px', border: '2px solid #B71C12', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 0 0 3px #FFC72C' }}>
-            <span style={{ fontSize: 9, fontWeight: 900, color: '#fff', letterSpacing: '0.05em', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>OXXO</span>
-          </div>
-
-          {/* mi escritorio (decoración propia) */}
-          {decoItems.length > 0 && miMesa && (
-            <div style={{ position: 'absolute', left: miMesa.x, top: miMesa.y - 16, width: miMesa.w, display: 'flex', justifyContent: 'center', gap: 3, fontSize: 14, pointerEvents: 'none', zIndex: 4 }}>
-              {decoItems.map((d) => <span key={d.id} title={d.nombre} style={{ filter: 'drop-shadow(0 1px 0 rgba(15,23,42,0.25))' }}>{d.emoji}</span>)}
-            </div>
-          )}
-          {decoItems.length > 0 && !miMesa && (
-            <div style={{ position: 'absolute', left: 8, bottom: 8, maxWidth: 150, background: 'rgba(255,255,255,0.85)', border: '1px solid #CBD5E1', borderRadius: 8, padding: '5px 8px' }}>
-              <div style={{ fontSize: 8.5, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{t('game.myDesk')}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, fontSize: 15 }}>
-                {decoItems.map((d) => <span key={d.id} title={d.nombre}>{d.emoji}</span>)}
-              </div>
-            </div>
-          )}
-
-          {/* mobiliario */}
-          {(mesas || []).map((m) => <Furniture key={m.id} m={m} highlight={nearModule && nearModule.id === m.id} />)}
-
-          {/* asientos + personas */}
-          {seatPeople.map((s) => (
-            <div key={s.key} style={{ position: 'absolute', left: s.x - SEAT / 2, top: s.y - SEAT / 2 }}>
-              <Chair />
-              {s.info && (
-                <div style={{ position: 'absolute', left: SEAT / 2 - AV / 2, top: -AV + 4, opacity: s.info.presente ? 1 : 0.6 }}>
-                  <Avatar look={s.info.look} sitting sleeping={!s.info.presente} name={s.info.nombre} />
-                  <span title={s.info.presente ? 'Presente ahora' : 'Ausente'} style={{ position: 'absolute', top: 0, right: 3, width: 8, height: 8, borderRadius: '50%', background: s.info.presente ? '#22C55E' : '#94A3B8', border: '1.5px solid #fff', zIndex: 5 }} />
-                </div>
-              )}
-            </div>
-          ))}
-
-          {/* prompt de módulo */}
-          {nearModule && (
-            <div style={{ position: 'absolute', left: nearModule.x + nearModule.w / 2 - 60, top: nearModule.y - 26, width: 120, textAlign: 'center', zIndex: 8 }}>
-              <span style={{ background: '#0F172A', color: '#fff', fontSize: 11, fontWeight: 700, padding: '4px 9px', borderRadius: 7, boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}>
-                {nearModule.link ? '🔗' : '➡️'} {t('game.enter')} · E
-              </span>
-            </div>
-          )}
-
-          {/* mascota */}
-          {pet && pet.color !== 'transparent' && (
-            <div style={{ position: 'absolute', left: pos.x - AV / 2 - 18, top: pos.y + 4, transition: 'left .12s linear, top .12s linear' }}>
-              <Pet kind={pet.id} />
-            </div>
-          )}
-
-          {/* jugador */}
-          <div style={{ position: 'absolute', left: pos.x - AV / 2, top: pos.y - AV / 2 - 10, zIndex: 6, transition: moving ? 'none' : 'left .12s, top .12s' }}>
-            <Avatar look={look} dir={dir} moving={moving} sitting={sitting} phase={phase} name={session ? (nombreDe ? nombreDe(session.email) : session.nombre) : t('game.you')} you />
-          </div>
-        </div>
-      </div>
+      {/* CUARTO — render pixel-art (GBA) del croquis real */}
+      <PixelRoom
+        mesas={mesas}
+        seatPeople={seatPeople}
+        pos={pos}
+        dir={dir}
+        moving={moving}
+        sitting={sitting}
+        phase={phase}
+        look={look}
+        decoItems={decoItems}
+        miMesa={miMesa}
+        nearModule={nearModule}
+        doorRect={DOOR}
+        playerName={session ? (nombreDe ? nombreDe(session.email) : session.nombre) : t('game.you')}
+      />
 
       <p style={{ textAlign: 'center', fontSize: 12.5, color: T.muted, marginTop: 12 }}>
         ⌨️ {t('game.move')} · {t('game.enterHint')} · 🪑 F {t('game.sit')} · 🏪 {t('game.shopHint')}
