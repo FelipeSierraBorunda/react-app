@@ -48,7 +48,7 @@ export async function createMesa(data) {
     duenos: data.duenos || [], objetos: data.objetos || [], link: data.link || '',
     pc: !!data.pc, orden: data.orden ?? 60,
     // nuevas columnas (requieren el ALTER de lab-schema.sql)
-    max_sillas: data.max_sillas ?? 2, seats: data.seats || [], color: data.color || '#ffffff',
+    max_sillas: data.max_sillas ?? 2, max_duenos: data.max_duenos ?? 2, seats: data.seats || [], color: data.color || '#ffffff',
     descripcion: data.descripcion || '',
   };
   return db.insert('mesas', row);
@@ -73,8 +73,9 @@ export async function checkIn(session, mesaId) {
   return db.insert('presencia', row);
 }
 
-export async function checkOut(presenceId) {
-  const res = await db.patch('presencia', 'id', presenceId, { salida: new Date().toISOString() });
+export async function checkOut(presenceId, when) {
+  const salida = when || new Date().toISOString();
+  const res = await db.patch('presencia', 'id', presenceId, { salida });
   return Array.isArray(res) ? res[0] : res;
 }
 

@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS mesas (
 
 -- Columnas del modo edición admin (seguro re-ejecutar).
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS max_sillas INT NOT NULL DEFAULT 2;
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS max_duenos INT NOT NULL DEFAULT 2;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS seats JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#ffffff';
 

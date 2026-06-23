@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS mesas (
 -- seats      : posiciones reubicables [{dx,dy,on}] (offset px respecto a la mesa).
 -- color      : color de relleno de la mesa.
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS max_sillas INT NOT NULL DEFAULT 2;
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS max_duenos INT NOT NULL DEFAULT 2;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS seats JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#ffffff';
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS descripcion TEXT DEFAULT '';

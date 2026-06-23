@@ -116,7 +116,9 @@ export function normalizeMesa(m) {
 
   const sillas = seats.filter((s) => s.on).length;
   const color = m.color || (m.kind === 'mesa' ? '#ffffff' : DEFAULT_MODULE_COLOR[m.kind] || '#475569');
-  return { ...m, max_sillas: max, seats, color, sillas };
+  // Tope de dueños por mesa (editable). Por defecto 2 como hasta ahora.
+  const max_duenos = (m.max_duenos != null) ? m.max_duenos : 2;
+  return { ...m, max_sillas: max, max_duenos, seats, color, sillas };
 }
 
 // Color por defecto de cada tipo de módulo (zona no-mesa).

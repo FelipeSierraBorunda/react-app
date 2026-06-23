@@ -2,7 +2,7 @@
    AccountView.jsx — Mi cuenta  [MIGRADA · fiel al HTML]
    ===================================================================== */
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { useLang } from '../context/LangContext.jsx';
@@ -131,6 +131,10 @@ function AvatarCard({ session, t }) {
   const [equipado, setEquipado] = useState(EQUIPADO_DEFAULT);
   const [comprados, setComprados] = useState(['out_bata', 'hat_none', 'pet_none', 'aura_none']);
   const [loaded, setLoaded] = useState(false);
+  // Fila completa del progreso. saveJuego usa upsert merge-duplicates (reemplaza
+  // toda la fila), así que SIEMPRE guardamos la fila entera para no borrar
+  // monedas/comprados/deco al cambiar de ropa.
+  const mineRef = useRef({});
 
   useEffect(() => {
     if (!session) return;
@@ -139,6 +143,7 @@ function AvatarCard({ session, t }) {
       const { mine } = await fetchJuego(session.email);
       if (!alive) return;
       if (mine) {
+        mineRef.current = mine;
         setEquipado({ ...EQUIPADO_DEFAULT, ...(mine.equipado || {}) });
         if (Array.isArray(mine.comprados) && mine.comprados.length) setComprados(mine.comprados);
       }
@@ -150,7 +155,11 @@ function AvatarCard({ session, t }) {
   function update(patch) {
     const ne = { ...equipado, ...patch };
     setEquipado(ne);
-    if (session) saveJuego(session.email, { equipado: ne });
+    if (session) {
+      const full = { ...mineRef.current, equipado: ne };
+      mineRef.current = full;
+      saveJuego(session.email, full);
+    }
   }
 
   const owned = (tipo) => TIENDA.filter((i) => i.tipo === tipo && (comprados.includes(i.id) || i.precio === 0));

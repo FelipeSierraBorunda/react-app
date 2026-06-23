@@ -98,9 +98,21 @@ export default function GameView({ go }) {
     })();
   }, [session]);
 
+  // Ref con el estado COMPLETO del progreso. El upsert de Supabase usa
+  // merge-duplicates, que REEMPLAZA toda la fila: si guardas solo {monedas}
+  // se borran comprados/deco/equipado. Por eso cada guardado envía la fila
+  // entera, tomando la base de este ref (siempre actualizado) + el patch.
+  const progresoRef = useRef({ monedas: 0, gastado: 0, comprados: BASE_OWNED, deco: [], equipado: EQUIPADO_DEFAULT, ult_recompensa: null, premio_sem: '' });
+  useEffect(() => {
+    progresoRef.current = { monedas, gastado, comprados, deco, equipado, ult_recompensa: ultRecompensa, premio_sem: premioSem };
+  }, [monedas, gastado, comprados, deco, equipado, ultRecompensa, premioSem]);
+
   const persist = useCallback((patch) => {
-    if (session) saveJuego(session.email, { monedas, gastado, comprados, deco, equipado, ult_recompensa: ultRecompensa, premio_sem: premioSem, ...patch });
-  }, [session, monedas, gastado, comprados, deco, equipado, ultRecompensa, premioSem]);
+    if (!session) return;
+    const full = { ...progresoRef.current, ...patch };
+    progresoRef.current = full;           // adelanta el ref para que dos saves seguidos no se pisen
+    saveJuego(session.email, full);
+  }, [session]);
 
   // ---------- recompensa por tiempo ----------
   const miPresencia = useMemo(
@@ -111,10 +123,10 @@ export default function GameView({ go }) {
     if (!session || !miPresencia) return;
     const r = calcRecompensa(miPresencia, ultRecompensa, new Date());
     if (!r) return;
-    setMonedas((m) => { const nm = m + r.monedas; saveJuego(session.email, { monedas: nm, ult_recompensa: r.nuevaMarca }); return nm; });
+    setMonedas((m) => { const nm = m + r.monedas; persist({ monedas: nm, ult_recompensa: r.nuevaMarca }); return nm; });
     setUltRecompensa(r.nuevaMarca);
     showFlash(`+${r.monedas} 🪙`);
-  }, [session, miPresencia, ultRecompensa, showFlash]);
+  }, [session, miPresencia, ultRecompensa, showFlash, persist]);
   useEffect(() => {
     if (!loaded || isMobile) return;
     otorgar();
@@ -199,14 +211,16 @@ export default function GameView({ go }) {
   const obstaculos = useMemo(() => (mesas || []).filter((m) => m && typeof m.x === 'number'), [mesas]);
   const modulos = useMemo(() => obstaculos.filter((m) => m.kind && m.kind !== 'mesa'), [obstaculos]);
 
-  // Mi mesa = aquella cuyos dueños incluyen mi nombre.
+  // Mi mesa = aquella cuyos dueños incluyen mi nombre (o mi email).
   const miMesa = useMemo(() => {
     if (!session) return null;
     const full = (session.nombre || '').trim().toLowerCase();
     const first = full.split(' ')[0];
-    if (!full) return null;
+    const myEmail = (session.email || '').trim().toLowerCase();
     return (mesas || []).find((m) => Array.isArray(m.duenos) && m.duenos.some((d) => {
       const dn = String(d || '').trim().toLowerCase();
+      if (myEmail && dn === myEmail) return true;
+      if (!full) return false;
       return dn === full || dn === first || dn.split(' ')[0] === first;
     })) || null;
   }, [mesas, session]);
@@ -217,8 +231,10 @@ export default function GameView({ go }) {
       const onSeats = miMesa.seats.filter((s) => s.on);
       if (onSeats.length) {
         const myName = (session?.nombre || '').trim().toLowerCase();
+        const myEmail = (session?.email || '').trim().toLowerCase();
         const ownerIdx = (miMesa.duenos || []).findIndex((d) => {
           const dn = String(d || '').trim().toLowerCase();
+          if (myEmail && dn === myEmail) return true;
           return dn === myName || dn.split(' ')[0] === myName.split(' ')[0];
         });
         const idx = ownerIdx >= 0 ? Math.min(ownerIdx, onSeats.length - 1) : 0;
@@ -345,7 +361,11 @@ export default function GameView({ go }) {
       return pn === myName || (myFirst && pn.split(' ')[0] === myFirst);
     };
     const resolveEmail = (nombre) => {
-      const key = String(nombre || '').trim().toLowerCase();
+      const raw = String(nombre || '').trim();
+      const key = raw.toLowerCase();
+      // El dueño puede estar guardado ya como email (cuentas nuevas) o como nombre (legado).
+      if (accounts && accounts[raw]) return raw;
+      if (key.includes('@')) return raw;
       return emailByName[key] || emailByName[key.split(' ')[0]] || null;
     };
     (mesas || []).forEach((m) => {

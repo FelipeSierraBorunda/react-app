@@ -271,15 +271,16 @@ function EditTab({ mesa, esMod, lab, setMsg, onClose }) {
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const esMesa = mesa.kind === 'mesa';
   const cuentas = lab.cuentas || [];
+  const tope = mesa.max_duenos || 2;
 
-  const toggleDueno = (email) => set('duenos', f.duenos.includes(email) ? f.duenos.filter((d) => d !== email) : [...f.duenos, email].slice(0, 2));
+  const toggleDueno = (email) => set('duenos', f.duenos.includes(email) ? f.duenos.filter((d) => d !== email) : [...f.duenos, email].slice(0, tope));
 
   async function save() {
     setBusy(true);
     const patch = {
       nombre: f.nombre.trim() || mesa.nombre,
       descripcion: f.descripcion.trim(),
-      duenos: f.duenos.slice(0, 2),
+      duenos: f.duenos.slice(0, tope),
       pc: f.pc,
       link: f.link.trim(),
       objetos: f.objetos.map((n) => ({ nombre: n })),
@@ -299,7 +300,7 @@ function EditTab({ mesa, esMod, lab, setMsg, onClose }) {
 
       {esMesa && (
         <>
-          <Field label="Dueños (máx 2 · cuentas registradas)">
+          <Field label={`Dueños (máx ${tope} · cuentas registradas)`}>
             {cuentas.length === 0 ? (
               <span style={{ fontSize: 12.5, color: T.muted }}>No hay cuentas registradas todavía.</span>
             ) : (

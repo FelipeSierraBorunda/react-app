@@ -428,8 +428,14 @@ function MesaEditor({ mesa, lab, onClose, onSelect }) {
   };
   const toggleDueno = (email) => {
     const has = (mesa.duenos || []).includes(email);
-    const duenos = has ? mesa.duenos.filter((d) => d !== email) : [...(mesa.duenos || []), email].slice(0, 2);
+    const tope = mesa.max_duenos || 2;
+    const duenos = has ? mesa.duenos.filter((d) => d !== email) : [...(mesa.duenos || []), email].slice(0, tope);
     lab.guardarMesa(mesa.id, { duenos });
+  };
+  const changeMaxDuenos = (v) => {
+    const nuevo = Math.max(1, Math.min(6, parseInt(v, 10) || 1));
+    const duenos = (mesa.duenos || []).slice(0, nuevo);
+    lab.guardarMesa(mesa.id, { max_duenos: nuevo, duenos });
   };
 
   return (
@@ -496,7 +502,10 @@ function MesaEditor({ mesa, lab, onClose, onSelect }) {
             )}
 
             {/* dueños (cuentas registradas) */}
-            <Field label="Dueños (máx 2 · cuentas registradas)">
+            <Field label={`Tope de dueños (${(mesa.duenos || []).length} de ${mesa.max_duenos || 2})`}>
+              <input type="number" min={1} max={6} value={mesa.max_duenos || 2} onChange={(e) => changeMaxDuenos(e.target.value)} style={{ ...inp, width: 80 }} />
+            </Field>
+            <Field label="Dueños (cuentas registradas)">
               {lab.cuentas.length === 0 ? (
                 <span style={{ fontSize: 12.5, color: T.muted }}>No hay cuentas registradas todavía.</span>
               ) : (

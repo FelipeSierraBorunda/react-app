@@ -48,6 +48,21 @@ export function LabProvider({ children }) {
 
   const ensureLoaded = useCallback(() => { if (!loaded) load(); }, [loaded, load]);
 
+  // ---------- cierre automático del lab a las 20:00 ----------
+  // A las 8 de la noche cierra el laboratorio: a quien siga "presente" (que
+  // olvidó registrar su salida) se le saca automáticamente, marcando la
+  // salida a las 20:00 de ese día. Se reevalúa con el reloj vivo (now).
+  useEffect(() => {
+    if (!loaded) return;
+    if (now.getHours() < 20) return;
+    const cierre = new Date(now); cierre.setHours(20, 0, 0, 0);
+    const cierreISO = cierre.toISOString();
+    const abiertos = presencia.filter((p) => !p.salida && new Date(p.entrada) < cierre);
+    if (!abiertos.length) return;
+    abiertos.forEach((p) => { Lab.checkOut(p.id, cierreISO).catch((e) => console.error('[lab] cierre auto:', e)); });
+    setPresencia((prev) => prev.map((p) => (!p.salida && new Date(p.entrada) < cierre ? { ...p, salida: cierreISO } : p)));
+  }, [now, loaded, presencia]);
+
   // Refresca manualmente (botón "Actualizar").
   const refresh = useCallback(async () => {
     const [p, r] = await Promise.all([Lab.fetchPresencia(), Lab.fetchReservas()]);
