@@ -142,3 +142,16 @@ DROP POLICY IF EXISTS "public_all" ON reservas;
 CREATE POLICY "public_all" ON mesas     FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "public_all" ON presencia FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "public_all" ON reservas  FOR ALL USING (true) WITH CHECK (true);
+
+-- ========== SALA DEL JUEGO (distribución compartida del croquis pixel) ==========
+-- Una sola fila (id='lab') con TODA la configuración editada dentro del juego:
+-- posición, tamaño, color, textura, rotación, espejo y sillas de cada mueble.
+-- Así las ediciones que haga cualquiera son las mismas para todos.
+CREATE TABLE IF NOT EXISTS sala (
+  id          TEXT PRIMARY KEY,
+  config      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  actualizado TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE sala ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "public_all" ON sala;
+CREATE POLICY "public_all" ON sala FOR ALL USING (true) WITH CHECK (true);

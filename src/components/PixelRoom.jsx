@@ -1,26 +1,30 @@
 /* =====================================================================
-   PixelRoom.jsx — Render pixel-art estilo lab de investigación.
+   PixelRoom.jsx — Render pixel-art del laboratorio + tienda OXXO.
    ---------------------------------------------------------------------
-   Dibuja el croquis real (880×500) en un <canvas> con cámara que sigue
-   al jugador. Estética: piso de baldosa crema, escritorios de madera,
-   sillas azules, módulos detallados (rack, cajas, brazo, archiveros).
-   Nombres de personas en un pase final (encima de todo).
+   Dibuja el croquis real (lab 880×500, desde Supabase) y, a su derecha,
+   un pasillo de 4 losas que conecta con una sala OXXO de 8×8 caminable
+   (refrigeradores, góndolas y caja, estilo 7-Eleven). Cámara que sigue al
+   jugador con ZOOM ajustable. Mesas vacías (listas para decorar). Nombres
+   en un pase final encima de todo.
    ===================================================================== */
 
 import { useRef, useEffect } from 'react';
-import { STAGE_W, STAGE_H, SEAT } from '../lib/lab-layout.js';
+import { SEAT } from '../lib/lab-layout.js';
 import { drawAvatar } from '../lib/avatarSprite.js';
+import {
+  TILE, LAB_W, LAB_H, HALL, OXXO, WORLD_W, WORLD_H, OXXO_FIXTURES, SHOP,
+  regionAt, nearShop,
+} from '../lib/world.js';
 
-const TILE = 20;
 const VIEW_W = 420, VIEW_H = 264;
 
 export default function PixelRoom({
   mesas, seatPeople, pos, dir, moving, sitting, phase,
-  playerSprite, decoItems, miMesa, nearModule, doorRect, playerName,
+  playerSprite, decoItems, miMesa, nearModule, playerName, zoom = 2, editSelId = null,
 }) {
   const canvasRef = useRef(null);
   const stateRef = useRef({});
-  stateRef.current = { mesas, seatPeople, pos, dir, moving, sitting, phase, playerSprite, decoItems, miMesa, nearModule, doorRect, playerName };
+  stateRef.current = { mesas, seatPeople, pos, dir, moving, sitting, phase, playerSprite, decoItems, miMesa, nearModule, playerName, zoom, editSelId };
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -43,13 +47,13 @@ export default function PixelRoom({
     // ---- chair (silla de oficina azul) ----
     function drawChair(cx, cy) {
       const x = Math.round(cx - SEAT/2), y = Math.round(cy - SEAT/2);
-      ctx.fillStyle = '#1e3a6e'; ctx.fillRect(x+3, y-2, SEAT-6, 4);      // respaldo
-      ctx.fillStyle = '#2a5298'; ctx.fillRect(x+1, y+2, SEAT-2, SEAT-4); // asiento
-      ctx.fillStyle = '#1e3a6e'; ctx.fillRect(x+1, y+SEAT-4, SEAT-2, 3); // base
-      ctx.fillStyle = '#4a7adf'; ctx.fillRect(x+3, y+3, SEAT-6, 3);       // brillo asiento
+      ctx.fillStyle = '#1e3a6e'; ctx.fillRect(x+3, y-2, SEAT-6, 4);
+      ctx.fillStyle = '#2a5298'; ctx.fillRect(x+1, y+2, SEAT-2, SEAT-4);
+      ctx.fillStyle = '#1e3a6e'; ctx.fillRect(x+1, y+SEAT-4, SEAT-2, 3);
+      ctx.fillStyle = '#4a7adf'; ctx.fillRect(x+3, y+3, SEAT-6, 3);
     }
 
-    // ---- escritorio (mesa normal) ----
+    // ---- escritorio VACÍO (listo para decorar) ----
     function drawDesk(m) {
       const wood = (m.color && m.color !== '#ffffff') ? m.color : '#c89a5a';
       const wsh = shade(wood, -0.25), whi = shade(wood, 0.15);
@@ -69,61 +73,10 @@ export default function PixelRoom({
       } else {
         dr(m.x, m.y, m.w, m.h);
       }
-      // monitor (PC) + teclado
-      if (m.pc) {
-        const mx = m.x+m.w-26, my = m.y+3;
-        ctx.fillStyle='#1a2236'; ctx.fillRect(mx,my,22,14);
-        ctx.fillStyle='#2a4a8c'; ctx.fillRect(mx+1,my+1,20,11);
-        ctx.fillStyle='rgba(120,180,255,0.35)'; ctx.fillRect(mx+1,my+1,20,3);
-        ctx.fillStyle='#3a4252'; ctx.fillRect(mx+7,my+14,8,3);
-        // teclado
-        ctx.fillStyle='#c8c0b0'; ctx.fillRect(mx-14,my+6,12,7);
-        ctx.fillStyle='#b0a898'; ctx.fillRect(mx-13,my+7,10,2); ctx.fillRect(mx-13,my+10,10,2);
-      }
-      // cables/equipos pequeños en otras mesas
-      if (!m.pc && m.w > 60) {
-        ctx.fillStyle='#8a7a6a'; ctx.fillRect(m.x+6,m.y+4,8,4);
-        ctx.fillStyle='#6a5a4a'; ctx.fillRect(m.x+7,m.y+5,6,2);
-        ctx.fillStyle='rgba(50,30,10,0.3)'; ctx.fillRect(m.x+14,m.y+5,20,1);
-      }
+      // nombre tenue (etiqueta, no es un objeto sobre la mesa)
       ctx.font = '7px "Silkscreen",monospace'; ctx.textAlign='center';
-      ctx.fillStyle='rgba(60,35,10,0.65)';
+      ctx.fillStyle='rgba(60,35,10,0.55)';
       ctx.fillText(m.nombre, m.x+m.w/2, m.y+m.h/2+2); ctx.textAlign='left';
-    }
-
-    // ---- dispensador de agua (pared izquierda) ----
-    function drawWaterCooler(x, y) {
-      // base blanca
-      ctx.fillStyle='#e8e8e8'; ctx.fillRect(x,y,18,28);
-      ctx.fillStyle='#f8f8f8'; ctx.fillRect(x+1,y+1,16,20);
-      // botellón azul
-      ctx.fillStyle='#a0c8e8'; ctx.fillRect(x+4,y-14,10,16);
-      ctx.fillStyle='#c0dff5'; ctx.fillRect(x+5,y-13,4,6);
-      ctx.fillStyle='#78a8c8'; ctx.fillRect(x+4,y+1,10,2);
-      // grifo
-      ctx.fillStyle='#cc4444'; ctx.fillRect(x+4,y+14,4,3);
-      ctx.fillStyle='#4444cc'; ctx.fillRect(x+10,y+14,4,3);
-      // bandeja
-      ctx.fillStyle='#c0c0c0'; ctx.fillRect(x+2,y+22,14,3);
-      ctx.strokeStyle='#a0a0a0'; ctx.lineWidth=1;
-      ctx.strokeRect(x+0.5,y+0.5,17,27);
-    }
-
-    // ---- pizarrón blanco ----
-    function drawWhiteboard(x, y, w, h) {
-      // marco
-      ctx.fillStyle='#8a7a5a'; ctx.fillRect(x-3,y-3,w+6,h+6);
-      ctx.fillStyle='#f5f5f0'; ctx.fillRect(x,y,w,h);
-      // borde interno
-      ctx.strokeStyle='#c8c0a8'; ctx.lineWidth=1; ctx.strokeRect(x+1,y+1,w-2,h-2);
-      // líneas simuladas de texto
-      ctx.fillStyle='rgba(60,80,180,0.4)';
-      ctx.fillRect(x+8,y+6,w-16,1.5);
-      ctx.fillRect(x+8,y+11,w-24,1.5);
-      ctx.fillRect(x+8,y+16,w-20,1.5);
-      ctx.fillRect(x+8,y+21,w-18,1.5);
-      // soporte
-      ctx.fillStyle='#6a5a3a'; ctx.fillRect(x+w/2-8,y+h,16,4);
     }
 
     // ---- módulos especiales ----
@@ -136,13 +89,10 @@ export default function PixelRoom({
         default:         drawGenericModule(m, near);
       }
     }
-
     function drawRack(m, near) {
-      // servidor / rack negro con LEDs
-      ctx.fillStyle = '#c0291a'; ctx.fillRect(m.x-4, m.y+m.h-6, m.w+8, 8); // alfombra roja
+      ctx.fillStyle = '#c0291a'; ctx.fillRect(m.x-4, m.y+m.h-6, m.w+8, 8);
       ctx.fillStyle = '#111827'; ctx.fillRect(m.x, m.y, m.w, m.h);
       ctx.fillStyle = '#1f2937'; ctx.fillRect(m.x+2, m.y+2, m.w-4, m.h-4);
-      // bahías
       for (let ry=m.y+4; ry<m.y+m.h-6; ry+=8) {
         ctx.fillStyle='#374151'; ctx.fillRect(m.x+3, ry, m.w-6, 6);
         ctx.fillStyle='rgba(0,255,100,0.85)'; ctx.fillRect(m.x+m.w-10, ry+2, 3, 2);
@@ -153,48 +103,39 @@ export default function PixelRoom({
       ctx.font='7px "Silkscreen",monospace'; ctx.fillStyle='#fff'; ctx.textAlign='center';
       ctx.fillText('GRANJA FPGA', m.x+m.w/2, m.y+8); ctx.textAlign='left';
     }
-
     function drawBrazo(m, near) {
       ctx.fillStyle='#374151'; ctx.fillRect(m.x, m.y, m.w, m.h);
       ctx.fillStyle='#4b5563'; ctx.fillRect(m.x,m.y,m.w,m.h-3);
       ctx.fillStyle='#6b7280'; ctx.fillRect(m.x,m.y,m.w,2);
-      // brazo mecánico
       const bx=m.x+m.w/2-4, by=m.y+3;
-      ctx.fillStyle='#9ca3af'; ctx.fillRect(bx,by+6,8,8);     // base
-      ctx.fillStyle='#d1d5db'; ctx.fillRect(bx+2,by+2,4,8);  // brazo vertical
-      ctx.fillStyle='#f3f4f6'; ctx.fillRect(bx+4,by,6,4);    // brazo horizontal
-      ctx.fillStyle='#fbbf24'; ctx.fillRect(bx+8,by+1,2,2);  // pinza
+      ctx.fillStyle='#9ca3af'; ctx.fillRect(bx,by+6,8,8);
+      ctx.fillStyle='#d1d5db'; ctx.fillRect(bx+2,by+2,4,8);
+      ctx.fillStyle='#f3f4f6'; ctx.fillRect(bx+4,by,6,4);
+      ctx.fillStyle='#fbbf24'; ctx.fillRect(bx+8,by+1,2,2);
       ctx.strokeStyle = near?'#FACC15':'#1f2937'; ctx.lineWidth=1;
       ctx.strokeRect(m.x+0.5,m.y+0.5,m.w-1,m.h-1);
       ctx.font='6px "Silkscreen",monospace'; ctx.fillStyle='#d1d5db'; ctx.textAlign='center';
       ctx.fillText('BRAZO', m.x+m.w/2, m.y+m.h-2); ctx.textAlign='left';
     }
-
     function drawInventario(m, near) {
-      // archivero azul con monitor
       ctx.fillStyle='#1e3a6e'; ctx.fillRect(m.x,m.y,m.w,m.h);
       ctx.fillStyle='#2a5298'; ctx.fillRect(m.x,m.y,m.w,m.h-4);
       ctx.fillStyle='#4a7adf'; ctx.fillRect(m.x,m.y,m.w,3);
-      // cajones
       for (let ry=m.y+6; ry<m.y+m.h-8; ry+=12) {
         ctx.fillStyle='#1e3a6e'; ctx.fillRect(m.x+4,ry,m.w-8,10);
-        ctx.fillStyle='#c0c0c0'; ctx.fillRect(m.x+m.w/2-4,ry+4,8,2); // tirador
+        ctx.fillStyle='#c0c0c0'; ctx.fillRect(m.x+m.w/2-4,ry+4,8,2);
       }
       ctx.strokeStyle = near?'#FACC15':'#1a2e54'; ctx.lineWidth=1.2;
       ctx.strokeRect(m.x+0.5,m.y+0.5,m.w-1,m.h-1);
       ctx.font='6px "Silkscreen",monospace'; ctx.fillStyle='#fff'; ctx.textAlign='center';
       ctx.fillText('INV', m.x+m.w/2, m.y+9); ctx.textAlign='left';
     }
-
     function drawAlmacen(m, near) {
-      // cajas de cartón apiladas
       const c1='#d4a05a', c2='#b8883a', c3='#e8bc70';
       ctx.fillStyle=c1; ctx.fillRect(m.x,m.y,m.w,m.h);
-      // caja grande
       ctx.fillStyle=c2; ctx.fillRect(m.x+2,m.y+m.h*0.55,m.w-4,m.h*0.42);
       ctx.fillStyle=c3; ctx.fillRect(m.x+2,m.y+m.h*0.55,m.w-4,4);
       ctx.fillStyle='rgba(90,50,10,0.3)'; ctx.fillRect(m.x+m.w/2-1,m.y+m.h*0.55,2,m.h*0.42);
-      // caja pequeña
       ctx.fillStyle=c1; ctx.fillRect(m.x+6,m.y+m.h*0.2,m.w-18,m.h*0.32);
       ctx.fillStyle=c3; ctx.fillRect(m.x+6,m.y+m.h*0.2,m.w-18,3);
       ctx.fillStyle='rgba(90,50,10,0.25)'; ctx.fillRect(m.x+m.w/2-1,m.y+m.h*0.2,2,m.h*0.32);
@@ -203,7 +144,6 @@ export default function PixelRoom({
       ctx.font='6px "Silkscreen",monospace'; ctx.fillStyle='#5a3a10'; ctx.textAlign='center';
       ctx.fillText('ALMACÉN', m.x+m.w/2, m.y+9); ctx.textAlign='left';
     }
-
     function drawGenericModule(m, near) {
       ctx.fillStyle='#4b5563'; ctx.fillRect(m.x,m.y,m.w,m.h);
       ctx.fillStyle='#6b7280'; ctx.fillRect(m.x,m.y,m.w,m.h-3);
@@ -213,22 +153,80 @@ export default function PixelRoom({
       ctx.fillText(m.nombre,m.x+m.w/2,m.y+m.h/2+2); ctx.textAlign='left';
     }
 
-    // ---- OXXO físico ----
-    function drawOxxo(d, near) {
-      const x=d.x-8, y=d.y-6, w=d.w+8, h=d.h+12;
-      ctx.fillStyle='#9c1f15'; ctx.fillRect(x,y,w,h);
-      ctx.fillStyle='#DA291C'; ctx.fillRect(x,y,w,h-4);
-      for(let i=0;i<h;i+=10){ ctx.fillStyle=i%20===0?'#FFC72C':'#fff'; ctx.fillRect(x-4,y+i,5,8); }
-      ctx.fillStyle='#0c1422'; ctx.fillRect(x+w/2-7,y+h/2-8,14,18);
-      ctx.fillStyle='rgba(120,200,255,0.25)'; ctx.fillRect(x+w/2-5,y+h/2-6,5,14);
-      ctx.strokeStyle=near?'#FACC15':'#7a160d'; ctx.lineWidth=near?2:1;
-      ctx.strokeRect(x+0.5,y+0.5,w-1,h-1);
-      ctx.save(); ctx.translate(x+w/2,y+16);
-      ctx.font='8px "Press Start 2P",monospace'; ctx.fillStyle='#fff'; ctx.textAlign='center';
-      ctx.fillText('OXXO',0,0); ctx.restore(); ctx.textAlign='left';
+    // ---- losa individual ----
+    function drawFloorTile(px, py, tx, ty, reg) {
+      if (reg === 'oxxo') {
+        const even = ((tx + ty) & 1) === 0;
+        ctx.fillStyle = even ? '#f3f4f6' : '#e7eaf0'; ctx.fillRect(px, py, TILE, TILE);
+        ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(px, py, TILE, 1); ctx.fillRect(px, py, 1, TILE);
+        ctx.fillStyle = 'rgba(120,120,140,0.16)'; ctx.fillRect(px, py+TILE-1, TILE, 1); ctx.fillRect(px+TILE-1, py, 1, TILE);
+        return;
+      }
+      // lab / pasillo: baldosa crema
+      ctx.fillStyle = (tx + ty) % 2 === 0 ? '#ede0c4' : '#e4d7b8'; ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = 'rgba(120,90,40,0.12)'; ctx.fillRect(px, py, TILE, 1); ctx.fillRect(px, py, 1, TILE);
+      ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(px+1, py+1, TILE-2, 1);
     }
 
-    // ---- prompt (E para entrar) ----
+    // ---- refrigeradores con bebidas (pared derecha del OXXO) ----
+    function drawCoolers(x, y, w, h) {
+      ctx.fillStyle='#8b949d'; ctx.fillRect(x-1,y-1,w+1,h+2);
+      const doors=Math.max(1,Math.round(h/22)), dh=h/doors;
+      const drinks=['#DA291C','#16A34A','#2563EB','#FFC72C','#ffffff','#F97316','#0EA5E9','#DC2626'];
+      for(let i=0;i<doors;i++){ const dy=y+i*dh+1;
+        ctx.fillStyle='#26333d'; ctx.fillRect(x+1,dy,w-2,dh-2);
+        for(let s=0;s<2;s++)for(let b=0;b<3;b++){ ctx.fillStyle=drinks[(i*2+s*3+b)%drinks.length];
+          ctx.fillRect(x+3+b*((w-6)/3), dy+2+s*((dh-3)/2), Math.max(2,(w-6)/3-1), (dh-3)/2-1); }
+        ctx.fillStyle='rgba(190,225,255,0.16)'; ctx.fillRect(x+1,dy,w-2,2);
+        ctx.fillStyle='rgba(255,255,255,0.20)'; ctx.fillRect(x+2,dy,2,dh-3);
+        ctx.strokeStyle='#5e6973'; ctx.lineWidth=1; ctx.strokeRect(x+1.5,dy+0.5,w-3,dh-2);
+      }
+    }
+    // ---- góndola (estante doble con producto) ----
+    function drawGondola(x, y, w, h) {
+      ctx.fillStyle='rgba(15,23,42,0.18)'; ctx.fillRect(x,y+h,w,3);
+      ctx.fillStyle='#cfd4db'; ctx.fillRect(x,y,w,h);
+      ctx.fillStyle='#aab1bb'; ctx.fillRect(x,y+h-3,w,3);
+      ctx.fillStyle='#e8ebef'; ctx.fillRect(x,y,w,2);
+      const prod=['#DA291C','#2563EB','#16A34A','#FFC72C','#7C3AED','#F97316','#0EA5E9','#DC2626','#10B981','#fff'];
+      const n=Math.max(1,Math.floor(w/6));
+      for(let i=0;i<n;i++){ ctx.fillStyle=prod[(i*7)%prod.length]; ctx.fillRect(x+2+i*(w-4)/n, y+2, Math.max(2,(w-4)/n-1), h-5); }
+    }
+    // ---- caja registradora / mostrador ----
+    function drawCheckout(x, y, w, h) {
+      ctx.fillStyle='rgba(15,23,42,0.18)'; ctx.fillRect(x,y+h,w,3);
+      ctx.fillStyle='#7a160d'; ctx.fillRect(x,y,w,h);
+      ctx.fillStyle='#b5482f'; ctx.fillRect(x,y,w,h-4);
+      ctx.fillStyle='#FFC72C'; ctx.fillRect(x,y,w,3);
+      ctx.fillStyle='#2a3147'; ctx.fillRect(x+w-15,y-8,11,9);
+      ctx.fillStyle='#9fd2e6'; ctx.fillRect(x+w-14,y-7,9,4);
+      ctx.fillStyle='#1b2230'; ctx.fillRect(x+w-13,y-2,7,2);
+      ctx.fillStyle='#1f2937'; ctx.fillRect(x+4,y-5,6,6); ctx.fillStyle='#4ade80'; ctx.fillRect(x+5,y-4,4,2);
+      const cc=['#DA291C','#16A34A','#2563EB','#FFC72C']; const cw=(w-4)/4;
+      for(let i=0;i<4;i++){ ctx.fillStyle=cc[i]; ctx.fillRect(x+2+i*cw, y+h-5, cw-1, 4); }
+      ctx.font='5px "Silkscreen",monospace'; ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText('CAJA', x+w/2, y+h-1); ctx.textAlign='left';
+    }
+    function drawOxxoRoom() {
+      const f = OXXO_FIXTURES;
+      // letrero OXXO sobre la pared superior
+      ctx.font='8px "Press Start 2P",monospace'; ctx.textAlign='center';
+      ctx.fillStyle='#FFC72C'; ctx.fillRect(OXXO.x+OXXO.w/2-24, OXXO.y-13, 48, 11);
+      ctx.fillStyle='#DA291C'; ctx.fillText('OXXO', OXXO.x+OXXO.w/2, OXXO.y-5);
+      ctx.textAlign='left';
+      drawCoolers(f.coolers.x, f.coolers.y, f.coolers.w, f.coolers.h);
+      drawGondola(f.gondola1.x, f.gondola1.y, f.gondola1.w, f.gondola1.h);
+      drawGondola(f.gondola2.x, f.gondola2.y, f.gondola2.w, f.gondola2.h);
+      drawCheckout(f.checkout.x, f.checkout.y, f.checkout.w, f.checkout.h);
+    }
+
+    // ---- prompt (E) ----
+    function drawSel(m) {
+      ctx.strokeStyle = '#FACC15'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+      ctx.strokeRect(m.x - 1.5, m.y - 1.5, m.w + 3, m.h + 3); ctx.setLineDash([]);
+      const hs = 5; ctx.fillStyle = '#FACC15';
+      [[m.x, m.y], [m.x + m.w, m.y], [m.x, m.y + m.h], [m.x + m.w, m.y + m.h]].forEach(([hx, hy]) =>
+        ctx.fillRect(hx - hs/2, hy - hs/2, hs, hs));
+    }
     function drawPrompt(wx, wy, text) {
       ctx.font='bold 8px "Silkscreen",monospace'; ctx.textAlign='center';
       const w=ctx.measureText(text).width+12;
@@ -238,61 +236,50 @@ export default function PixelRoom({
 
     function draw() {
       const s = stateRef.current;
-      const p = s.pos || { x: STAGE_W/2, y: STAGE_H/2 };
-      cam.x = clamp(p.x-VIEW_W/2, 0, STAGE_W-VIEW_W);
-      cam.y = clamp(p.y-VIEW_H/2, 0, STAGE_H-VIEW_H);
-      ctx.setTransform(1,0,0,1,0,0);
-      ctx.clearRect(0,0,VIEW_W,VIEW_H);
-      ctx.translate(-Math.round(cam.x),-Math.round(cam.y));
+      const Z = s.zoom || 2;
+      const vw = VIEW_W / Z, vh = VIEW_H / Z;
+      const p = s.pos || { x: LAB_W/2, y: LAB_H/2 };
+      cam.x = clamp(p.x - vw/2, 0, Math.max(0, WORLD_W - vw));
+      cam.y = clamp(p.y - vh/2, 0, Math.max(0, WORLD_H - vh));
 
-      // ---- piso baldosa crema (estilo lab real) ----
-      const x0=Math.floor(cam.x/TILE)-1, y0=Math.floor(cam.y/TILE)-1;
-      for(let ty=y0;ty<y0+VIEW_H/TILE+3;ty++) {
-        for(let tx=x0;tx<x0+VIEW_W/TILE+3;tx++) {
-          const px=tx*TILE, py=ty*TILE;
-          const out=px<0||py<0||px>=STAGE_W||py>=STAGE_H;
-          if(out){
-            ctx.fillStyle='#c8b898'; ctx.fillRect(px,py,TILE,TILE);
-            ctx.fillStyle='#b8a888'; ctx.fillRect(px,py,TILE,2);
-            continue;
-          }
-          ctx.fillStyle=(tx+ty)%2===0?'#ede0c4':'#e4d7b8';
-          ctx.fillRect(px,py,TILE,TILE);
-          ctx.fillStyle='rgba(120,90,40,0.12)';
-          ctx.fillRect(px,py,TILE,1); ctx.fillRect(px,py,1,TILE);
-          // mínimo brillo en esquina
-          ctx.fillStyle='rgba(255,255,255,0.08)';
-          ctx.fillRect(px+1,py+1,TILE-2,1);
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.fillStyle='#0b0d14'; ctx.fillRect(0,0,VIEW_W,VIEW_H);   // vacío fuera de las salas
+      ctx.setTransform(Z,0,0,Z, -Math.round(cam.x*Z), -Math.round(cam.y*Z));
+
+      // ---- piso + paredes (solo losas visibles) ----
+      const tx0=Math.floor(cam.x/TILE)-1, ty0=Math.floor(cam.y/TILE)-1;
+      const tx1=Math.ceil((cam.x+vw)/TILE)+1, ty1=Math.ceil((cam.y+vh)/TILE)+1;
+      for(let ty=ty0;ty<ty1;ty++) for(let tx=tx0;tx<tx1;tx++){
+        const px=tx*TILE, py=ty*TILE;
+        const reg=regionAt(px+TILE/2, py+TILE/2);
+        if(reg){ drawFloorTile(px,py,tx,ty,reg); continue; }
+        // ¿pared? (vacío junto a una sala)
+        let adj=false;
+        for(let dy=-1;dy<=1&&!adj;dy++)for(let dx=-1;dx<=1;dx++){ if(regionAt(px+TILE/2+dx*TILE, py+TILE/2+dy*TILE)){adj=true;break;} }
+        if(adj){
+          ctx.fillStyle='#f4f5f7'; ctx.fillRect(px,py,TILE,TILE);
+          ctx.fillStyle='#ffffff'; ctx.fillRect(px,py,TILE,3);
+          ctx.fillStyle='#d4d8de'; ctx.fillRect(px,py+TILE-3,TILE,3);
         }
       }
-      // zócalo / borde de paredes (crema con acento)
-      ctx.strokeStyle='#a0906a'; ctx.lineWidth=6;
-      ctx.strokeRect(3,3,STAGE_W-6,STAGE_H-6);
-      ctx.strokeStyle='#c8b890'; ctx.lineWidth=2;
-      ctx.strokeRect(8,8,STAGE_W-16,STAGE_H-16);
 
-      // letrero "LABORATORIO DE INVESTIGACIÓN"
+      // letrero del laboratorio
       ctx.fillStyle='#f5f0e0'; ctx.fillRect(10,4,320,20);
       ctx.strokeStyle='#8a7050'; ctx.lineWidth=1.5; ctx.strokeRect(10,4,320,20);
       ctx.font='bold 9px "Silkscreen",monospace'; ctx.fillStyle='#2a1a0a'; ctx.textAlign='left';
       ctx.fillText('LABORATORIO DE INVESTIGACIÓN', 16, 18); ctx.textAlign='left';
 
-      // ---- elementos fijos del lab ----
-      // dispensador de agua (pared izquierda, junto al inventario)
-      draws.push({ y: 120, fn: () => drawWaterCooler(0, 90) });
-      // pizarrón blanco (área central)
-      draws.push({ y: 290, fn: () => drawWhiteboard(460, 160, 160, 80) });
-
-      // ---- OXXO físico ----
-      if(s.doorRect) drawOxxo(s.doorRect, false);
+      // mobiliario interior del OXXO
+      drawOxxoRoom();
 
       // ---- y-sort: muebles + sillas + sprites ----
       const draws = [];
-      const labels = []; // acumulamos nombres para dibujarlos AL FINAL, encima de todo
+      const labels = [];
 
       (s.mesas||[]).forEach(m => {
-        if(m.kind==='mesa') draws.push({y:m.y+m.h, fn:()=>drawDesk(m)});
-        else draws.push({y:m.y+m.h, fn:()=>drawModule(m, s.nearModule&&s.nearModule.id===m.id)});
+        const sel = s.editSelId && m.id === s.editSelId;
+        if(m.kind==='mesa') draws.push({y:m.y+m.h, fn:()=>{ drawDesk(m); if(sel) drawSel(m); }});
+        else draws.push({y:m.y+m.h, fn:()=>{ drawModule(m, (s.nearModule&&s.nearModule.id===m.id)||sel); if(sel) drawSel(m); }});
       });
 
       // deco en mi mesa
@@ -314,14 +301,13 @@ export default function PixelRoom({
             drawAvatar(ctx, seat.x, seat.y+2, {
               ...(seat.info.sprite||{}), dir:'up', sitting:true, sleeping:!seat.info.presente
             }, 1);
-            // acumular etiqueta para pase final
             labels.push({ cx:seat.x, fy:seat.y+2, name:seat.info.nombre, you:false, present:seat.info.presente, dot:true });
           }
         }});
       });
 
       // jugador
-      const p2=s.pos||{x:STAGE_W/2,y:STAGE_H/2};
+      const p2=s.pos||{x:LAB_W/2,y:LAB_H/2};
       draws.push({y:p2.y, fn:()=>{
         drawAvatar(ctx, p2.x, p2.y+4, {
           ...(s.playerSprite||{}), dir:s.dir, sitting:s.sitting, frame:s.moving?s.phase:0
@@ -331,18 +317,13 @@ export default function PixelRoom({
 
       draws.sort((a,b)=>a.y-b.y).forEach(d=>d.fn());
 
-      // ---- PASE FINAL: nombres encima de todo ----
+      // ---- nombres encima de todo ----
       labels.forEach(l => {
         if(!l.name) return;
         const top = l.fy - 28;
-        // sombra
         ctx.font = 'bold 8px "Silkscreen",monospace'; ctx.textAlign='center';
-        ctx.fillStyle='rgba(0,0,0,0.7)';
-        ctx.fillText(l.name, l.cx+1, top+1);
-        // texto
-        ctx.fillStyle = l.you ? '#FACC15' : '#ffffff';
-        ctx.fillText(l.name, l.cx, top);
-        // punto de presencia
+        ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillText(l.name, l.cx+1, top+1);
+        ctx.fillStyle = l.you ? '#FACC15' : '#ffffff'; ctx.fillText(l.name, l.cx, top);
         if(l.dot) {
           ctx.fillStyle = l.present?'#22C55E':'#94A3B8';
           ctx.strokeStyle='#000'; ctx.lineWidth=1;
@@ -352,8 +333,9 @@ export default function PixelRoom({
         ctx.textAlign='left';
       });
 
-      // prompt módulo
+      // prompts (E)
       if(s.nearModule) drawPrompt(s.nearModule.x+s.nearModule.w/2, s.nearModule.y-4, '→ Entrar · E');
+      if(nearShop(p2.x, p2.y)) drawPrompt(SHOP.x+SHOP.w/2, SHOP.y-3, '🛒 Comprar · E');
 
       raf = requestAnimationFrame(draw);
     }

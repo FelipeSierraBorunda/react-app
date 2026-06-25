@@ -16,6 +16,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useLang } from '../context/LangContext.jsx';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { STAGE_W, STAGE_H, SEAT } from '../lib/lab-layout.js';
+import { WORLD_W, WORLD_H, walkableBody, hitsOxxo, nearShop, SHOP, SPAWN_HALL } from '../lib/world.js';
+import { MESA_COLORS } from '../lib/lab-layout.js';
 import {
   TIENDA, EQUIPADO_DEFAULT, PELOS, PIELES, PELO_COLORES, CARAS, itemById, ES_ACUMULABLE,
   CAMISA_COLORES, PANTALON_COLORES, LENTES,
@@ -33,16 +35,15 @@ import { spriteFromEquipado, seededSprite } from '../lib/avatarSprite.js';
 const STEP = 9, AV = 30;
 // Mismo recorte que el croquis (hueco abajo-izquierda).
 const L_CLIP = 'polygon(0 0,100% 0,100% 100%,72% 100%,72% 48%,0 48%)';
-const DOOR = { x: STAGE_W - 40, y: 14, w: 40, h: 96 }; // zona OXXO (pared derecha)
-const SPAWN_FALLBACK = { x: 156, y: 392 };               // punto libre si no tienes mesa asignada
+const SPAWN_FALLBACK = SPAWN_HALL;                       // boca del pasillo si no tienes mesa
 const BASE_OWNED = ['out_bata', 'hat_none', 'pet_none', 'desk_gris', 'aura_none'];
 
 export default function GameView({ go }) {
   const lab = useLab();
-  const { session, invAccess, accounts } = useAuth();
+  const { session, invAccess, accounts, isAdmin } = useAuth();
   const { t } = useLang();
   const inv = useInventory();
-  const { mesas, presentes, presencia, presentesPorMesa, ensureLoaded, nombreDe } = lab;
+  const { mesas, presentes, presencia, presentesPorMesa, ensureLoaded, nombreDe, guardarMesa, setMesaLocal } = lab;
 
   useEffect(() => { ensureLoaded(); }, [ensureLoaded]);
 
@@ -68,8 +69,23 @@ export default function GameView({ go }) {
   const [modulo, setModulo] = useState(null);
   const [flash, setFlash] = useState(null);
   const [loaded, setLoaded] = useState(false);
-  const [atDoor, setAtDoor] = useState(false);
+  const [nearShopUI, setNearShopUI] = useState(false);
   const [nearModule, setNearModule] = useState(null);
+  const [zoom, setZoom] = useState(() => {
+    if (typeof window === 'undefined') return 2;
+    const z = parseFloat(localStorage.getItem('labgame_zoom'));
+    return z ? Math.max(1, Math.min(3.5, z)) : 2;
+  });
+  const setZoomSafe = useCallback((z) => {
+    const v = Math.max(1, Math.min(3.5, Math.round(z * 4) / 4));
+    setZoom(v);
+    try { localStorage.setItem('labgame_zoom', String(v)); } catch (_) {}
+  }, []);
+
+  // --- editor de la sala (solo admin) ---
+  const [editMode, setEditMode] = useState(false);
+  const [selMesaId, setSelMesaId] = useState(null);
+  const selMesa = useMemo(() => (mesas || []).find((m) => m.id === selMesaId) || null, [mesas, selMesaId]);
 
   // --- quiz ---
   const [quizPreguntas, setQuizPreguntas] = useState([]);
@@ -224,7 +240,54 @@ export default function GameView({ go }) {
     setQuizPreguntas((prev) => [row, ...prev]);
   }
 
-  // ---------- avatar WASD + animación ----------
+  // ---------- editor de mesas (admin): arrastrar sobre el lienzo ----------
+  // Convierte un evento de puntero a coordenadas del MUNDO, replicando la
+  // cámara de PixelRoom (VIEW 420×264, zoom, centrada en el jugador).
+  const pointerToWorld = useCallback((e) => {
+    const ov = overlayRef.current; if (!ov) return null;
+    const rect = ov.getBoundingClientRect();
+    const Z = zoomRef.current || 2, vw = 420 / Z, vh = 264 / Z;
+    const p = posRef.current;
+    const camx = clamp(p.x - vw / 2, 0, Math.max(0, WORLD_W - vw));
+    const camy = clamp(p.y - vh / 2, 0, Math.max(0, WORLD_H - vh));
+    const px = (e.clientX - rect.left) * (420 / rect.width);
+    const py = (e.clientY - rect.top) * (264 / rect.height);
+    return { x: px / Z + camx, y: py / Z + camy };
+  }, []);
+
+  const onEditPointerDown = useCallback((e) => {
+    const w = pointerToWorld(e); if (!w) return;
+    const hit = (mesas || []).find((m) => w.x >= m.x && w.x <= m.x + m.w && w.y >= m.y && w.y <= m.y + m.h);
+    if (hit) {
+      setSelMesaId(hit.id);
+      editRef.current = { id: hit.id, ox: w.x - hit.x, oy: w.y - hit.y };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+    } else {
+      setSelMesaId(null);
+    }
+  }, [mesas, pointerToWorld]);
+
+  const onEditPointerMove = useCallback((e) => {
+    const d = editRef.current; if (!d) return;
+    const w = pointerToWorld(e); if (!w) return;
+    const m = (mesas || []).find((x) => x.id === d.id); if (!m) return;
+    const nx = clamp(Math.round(w.x - d.ox), 0, WORLD_W - m.w);
+    const ny = clamp(Math.round(w.y - d.oy), 0, WORLD_H - m.h);
+    setMesaLocal(d.id, { x: nx, y: ny });
+  }, [mesas, pointerToWorld, setMesaLocal]);
+
+  const onEditPointerUp = useCallback(() => {
+    const d = editRef.current; if (!d) return;
+    editRef.current = null;
+    const m = (mesas || []).find((x) => x.id === d.id);
+    if (m) guardarMesa(d.id, { x: m.x, y: m.y });
+  }, [mesas, guardarMesa]);
+
+  const editMesa = useCallback((patch) => {
+    if (!selMesaId) return;
+    guardarMesa(selMesaId, patch);
+  }, [selMesaId, guardarMesa]);
+
   const [pos, setPos] = useState(SPAWN_FALLBACK);
   const [dir, setDir] = useState('up');
   const [moving, setMoving] = useState(false);
@@ -232,9 +295,12 @@ export default function GameView({ go }) {
   const [phase, setPhase] = useState(0);
   const keys = useRef({});
   const posRef = useRef(SPAWN_FALLBACK);
+  const zoomRef = useRef(zoom); zoomRef.current = zoom;
+  const editRef = useRef(null);   // estado de arrastre del editor
+  const overlayRef = useRef(null);
   const movedRef = useRef(false);
   const nearRef = useRef(null);
-  const atDoorRef = useRef(false);
+  const nearShopRef = useRef(false);
   const obstaculos = useMemo(() => (mesas || []).filter((m) => m && typeof m.x === 'number'), [mesas]);
   const modulos = useMemo(() => obstaculos.filter((m) => m.kind && m.kind !== 'mesa'), [obstaculos]);
 
@@ -289,7 +355,7 @@ export default function GameView({ go }) {
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       const k = e.key.toLowerCase();
-      if (k === 'e') { entrarModulo(); return; }
+      if (k === 'e') { if (nearShopRef.current) { setShopOpen(true); } else { entrarModulo(); } return; }
       if (k === 'f') { toggleSit(); return; }
       if (game(k)) { keys.current[k] = true; e.preventDefault(); }
     };
@@ -338,23 +404,23 @@ export default function GameView({ go }) {
       setPhase((p) => (p + 1) % 4);
       setDir(dy < 0 ? 'up' : dy > 0 ? 'down' : dx < 0 ? 'left' : 'right');
       const p = posRef.current;
-      let nx = clamp(p.x + dx, AV / 2, STAGE_W - AV / 2);
-      let ny = clamp(p.y + dy, AV / 2, STAGE_H - AV / 2);
-      if (hits(nx, p.y, obstaculos)) nx = p.x;
-      if (hits(nx, ny, obstaculos)) ny = p.y;
+      // movimiento eje por eje, respetando salas (lab + pasillo + OXXO) y mobiliario
+      let nx = p.x, ny = p.y;
+      const tryX = p.x + dx;
+      if (walkableBody(tryX, p.y) && !hits(tryX, p.y, obstaculos) && !hitsOxxo(tryX, p.y)) nx = tryX;
+      const tryY = ny + dy;
+      if (walkableBody(nx, tryY) && !hits(nx, tryY, obstaculos) && !hitsOxxo(nx, tryY)) ny = tryY;
       posRef.current = { x: nx, y: ny };
       setPos({ x: nx, y: ny });
-      // puerta OXXO
-      const nearDoor = nx > DOOR.x - 26 && ny > DOOR.y - 10 && ny < DOOR.y + DOOR.h + 10;
-      if (nearDoor !== atDoorRef.current) { atDoorRef.current = nearDoor; setAtDoor(nearDoor); }
+      // caja del OXXO (E para comprar)
+      const ns = nearShop(nx, ny);
+      if (ns !== nearShopRef.current) { nearShopRef.current = ns; setNearShopUI(ns); }
       // módulo cercano
       const mod = modulos.find((o) => cerca(nx, ny, o, 28)) || null;
       if (mod !== nearRef.current) { nearRef.current = mod; setNearModule(mod); }
     }, 33);
     return () => clearInterval(iv);
   }, [obstaculos, modulos, isMobile]);
-
-  useEffect(() => { if (atDoor && !shopOpen) setShopOpen(true); }, [atDoor]); // eslint-disable-line
 
   // ---------- asientos: dueños en su mesa + visitantes presentes ----------
   const lookByEmail = useMemo(() => {
@@ -469,12 +535,20 @@ export default function GameView({ go }) {
           </div>
         </div>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10, padding: '5px 8px' }}>
+            <button onClick={() => setZoomSafe(zoom - 0.25)} title="Alejar" style={zoomBtn}>−</button>
+            <span style={{ fontSize: 12, fontWeight: 800, color: T.inkSoft, minWidth: 42, textAlign: 'center' }}>🔍 {zoom.toFixed(2).replace(/0$/, '')}x</span>
+            <button onClick={() => setZoomSafe(zoom + 0.25)} title="Acercar" style={zoomBtn}>＋</button>
+          </div>
           <button onClick={() => setQuizOpen(true)} style={btnHud('#fff', T.ink, T.border)}>
             📚 Quiz{sinResponder > 0 && <span style={{ marginLeft: 4, background: '#DC2626', color: '#fff', borderRadius: 20, padding: '1px 7px', fontSize: 11 }}>{sinResponder}</span>}
           </button>
           <button onClick={() => setCustOpen(true)} style={btnHud('#fff', T.ink, T.border)}>🎨 {t('game.customize')}</button>
           <button onClick={() => setShopOpen(true)} style={btnHud('#DA291C', '#fff', '#DA291C')}>🏪 OXXO</button>
+          {isAdmin && (
+            <button onClick={() => { setEditMode((v) => !v); setSelMesaId(null); }} style={btnHud(editMode ? '#FACC15' : '#fff', editMode ? '#3a2d00' : T.ink, editMode ? '#CA8A04' : T.border)}>✎ {editMode ? 'Listo' : 'Editar'}</button>
+          )}
         </div>
       </div>
 
@@ -485,24 +559,40 @@ export default function GameView({ go }) {
       )}
 
       {/* CUARTO — render pixel-art (GBA) del croquis real */}
-      <PixelRoom
-        mesas={mesas}
-        seatPeople={seatPeople}
-        pos={pos}
-        dir={dir}
-        moving={moving}
-        sitting={sitting}
-        phase={phase}
-        playerSprite={playerSprite}
-        decoItems={decoItems}
-        miMesa={miMesa}
-        nearModule={nearModule}
-        doorRect={DOOR}
-        playerName={session ? (nombreDe ? nombreDe(session.email) : session.nombre) : t('game.you')}
-      />
+      <div style={{ position: 'relative', maxWidth: 880, margin: '0 auto' }}>
+        <PixelRoom
+          mesas={mesas}
+          seatPeople={seatPeople}
+          pos={pos}
+          dir={dir}
+          moving={moving}
+          sitting={sitting}
+          phase={phase}
+          playerSprite={playerSprite}
+          decoItems={decoItems}
+          miMesa={miMesa}
+          nearModule={nearModule}
+          zoom={zoom}
+          editSelId={editMode ? selMesaId : null}
+          playerName={session ? (nombreDe ? nombreDe(session.email) : session.nombre) : t('game.you')}
+        />
+        {editMode && (
+          <div
+            ref={overlayRef}
+            onPointerDown={onEditPointerDown}
+            onPointerMove={onEditPointerMove}
+            onPointerUp={onEditPointerUp}
+            style={{ position: 'absolute', inset: 6, cursor: editRef.current ? 'grabbing' : 'grab', touchAction: 'none' }}
+          />
+        )}
+      </div>
+
+      {editMode && (
+        <EditPanel mesa={selMesa} onChange={editMesa} onDeselect={() => setSelMesaId(null)} />
+      )}
 
       <p style={{ textAlign: 'center', fontSize: 12.5, color: T.muted, marginTop: 12 }}>
-        ⌨️ {t('game.move')} · {t('game.enterHint')} · 🪑 F {t('game.sit')} · 🏪 {t('game.shopHint')}
+        ⌨️ {t('game.move')} · {t('game.enterHint')} · 🪑 F {t('game.sit')} · {nearShopUI ? <strong style={{ color: '#DA291C' }}>🏪 E — Comprar en el OXXO</strong> : <>🏪 {t('game.shopHint')}</>}
       </p>
 
       {/* leyenda de zonas */}
@@ -520,7 +610,7 @@ export default function GameView({ go }) {
         </span>
       </div>
 
-      {shopOpen && <OxxoShop t={t} monedas={monedas} comprados={comprados} deco={deco} equipado={equipado} insignia={insignia} gastado={gastado} onBuy={comprar} onClose={() => { setShopOpen(false); const np = { x: DOOR.x - 50, y: posRef.current.y }; posRef.current = np; setPos(np); atDoorRef.current = false; setAtDoor(false); }} />}
+      {shopOpen && <OxxoShop t={t} monedas={monedas} comprados={comprados} deco={deco} equipado={equipado} insignia={insignia} gastado={gastado} onBuy={comprar} onClose={() => setShopOpen(false)} />}
       {custOpen && <Customizer t={t} equipado={equipado} onLook={setLook} onClose={() => setCustOpen(false)} />}
       {quizOpen && <QuizModal t={t} session={session} preguntas={activas} mis={misRespuestas} onResponder={responder} onCrear={nuevaPregunta} onClose={() => setQuizOpen(false)} />}
       {modulo && <ModuloModal t={t} modulo={modulo} inv={inv} invAccess={invAccess} go={go} onClose={() => setModulo(null)} />}
@@ -795,6 +885,64 @@ function CreateForm({ t, onCrear }) {
   );
 }
 
+/* ---------- editor de mesas (admin) ---------- */
+function EditPanel({ mesa, onChange, onDeselect }) {
+  if (!mesa) {
+    return (
+      <div style={editWrap}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>✎ Modo editar (admin)</span>
+        <span style={{ fontSize: 12.5, color: '#78350F' }}>Haz clic en una mesa para seleccionarla y arrástrala para moverla. Los cambios se guardan para todos.</span>
+      </div>
+    );
+  }
+  const esMesa = mesa.kind === 'mesa';
+  const step = (k, d, min, max) => onChange({ [k]: Math.max(min, Math.min(max, (mesa[k] || 0) + d)) });
+  return (
+    <div style={editWrap}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <strong style={{ fontSize: 13.5, color: '#3a2d00' }}>{mesa.nombre}</strong>
+        <span style={{ fontSize: 11.5, color: '#78350F' }}>{esMesa ? `forma ${mesa.forma || 'rect'}` : mesa.kind}</span>
+        <button onClick={onDeselect} style={{ marginLeft: 'auto', ...miniBtn }}>✕ deseleccionar</button>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <label style={editLbl}>Ancho
+          <span style={stepGroup}>
+            <button onClick={() => step('w', -10, 40, 320)} style={miniBtn}>−</button>
+            <b style={{ minWidth: 30, textAlign: 'center' }}>{mesa.w}</b>
+            <button onClick={() => step('w', 10, 40, 320)} style={miniBtn}>＋</button>
+          </span>
+        </label>
+        <label style={editLbl}>Alto
+          <span style={stepGroup}>
+            <button onClick={() => step('h', -10, 32, 240)} style={miniBtn}>−</button>
+            <b style={{ minWidth: 30, textAlign: 'center' }}>{mesa.h}</b>
+            <button onClick={() => step('h', 10, 32, 240)} style={miniBtn}>＋</button>
+          </span>
+        </label>
+        {esMesa && (
+          <label style={editLbl}>Forma
+            <span style={stepGroup}>
+              {['rect', 'L'].map((f) => (
+                <button key={f} onClick={() => onChange({ forma: f })} style={{ ...miniBtn, background: mesa.forma === f ? '#CA8A04' : '#fff', color: mesa.forma === f ? '#fff' : '#3a2d00', minWidth: 40 }}>{f}</button>
+              ))}
+            </span>
+          </label>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+        <span style={editLbl}>Color</span>
+        {MESA_COLORS.map((c) => (
+          <button key={c} onClick={() => onChange({ color: c })} title={c} style={{ width: 24, height: 24, borderRadius: 6, background: c === '#ffffff' ? 'repeating-linear-gradient(45deg,#fff,#fff 3px,#E2E8F0 3px,#E2E8F0 6px)' : c, cursor: 'pointer', border: `3px solid ${mesa.color === c ? '#CA8A04' : 'rgba(0,0,0,0.15)'}` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+const editWrap = { maxWidth: 880, margin: '12px auto 0', display: 'flex', flexDirection: 'column', gap: 10, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 16px' };
+const editLbl = { display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#78350F' };
+const stepGroup = { display: 'inline-flex', alignItems: 'center', gap: 4 };
+const miniBtn = { padding: '4px 9px', borderRadius: 7, border: '1px solid #E5D5A8', background: '#fff', color: '#3a2d00', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit' };
+
 function Group({ label, children }) {
   return <div style={{ marginBottom: 16 }}><div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>{label}</div>{children}</div>;
 }
@@ -807,6 +955,7 @@ function Swatches({ values, active, onPick }) {
 }
 const chipBtn = (on) => ({ padding: '7px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12.5, fontWeight: 600, fontFamily: T.font, border: `1px solid ${on ? T.primary : T.border}`, background: on ? T.primarySoft : '#fff', color: on ? T.primary : '#475569' });
 const btnHud = (bg, fg, bd) => ({ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 15px', borderRadius: 10, border: `1px solid ${bd}`, background: bg, color: fg, fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: T.font });
+const zoomBtn = { width: 24, height: 24, borderRadius: 6, border: 'none', background: '#2a5298', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 800, lineHeight: 1, padding: 0 };
 const qlbl = { display: 'block', fontSize: 11.5, fontWeight: 700, color: T.inkSoft, marginBottom: 5 };
 const qinp = { width: '100%', padding: '9px 11px', borderRadius: 9, border: `1px solid ${T.border}`, fontSize: 13, fontFamily: T.font, outline: 'none', boxSizing: 'border-box', color: T.ink };
 
