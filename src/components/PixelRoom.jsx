@@ -12,7 +12,7 @@ import { useRef, useEffect } from 'react';
 import { SEAT } from '../lib/lab-layout.js';
 import { drawAvatar } from '../lib/avatarSprite.js';
 import {
-  TILE, LAB_W, LAB_H, HALL, OXXO, WORLD_W, WORLD_H, OXXO_FIXTURES, SHOP, LAB_FRIDGE,
+  TILE, LAB_W, LAB_H, HALL, OXXO, WORLD_W, WORLD_H, OXXO_FIXTURES, SHOP, FRIDGE_DEFAULT,
   regionAt, nearShop,
 } from '../lib/world.js';
 
@@ -21,10 +21,11 @@ const VIEW_W = 420, VIEW_H = 264;
 export default function PixelRoom({
   mesas, seatPeople, pos, dir, moving, sitting, phase,
   playerSprite, decoItems, miMesa, nearModule, playerName, zoom = 2, editSelId = null,
+  fridge = null, pet = null, aura = null,
 }) {
   const canvasRef = useRef(null);
   const stateRef = useRef({});
-  stateRef.current = { mesas, seatPeople, pos, dir, moving, sitting, phase, playerSprite, decoItems, miMesa, nearModule, playerName, zoom, editSelId };
+  stateRef.current = { mesas, seatPeople, pos, dir, moving, sitting, phase, playerSprite, decoItems, miMesa, nearModule, playerName, zoom, editSelId, fridge, pet, aura };
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -56,16 +57,21 @@ export default function PixelRoom({
       ctx.fillStyle = '#7a1414'; ctx.fillRect(x - 9, y - 2, 2, 7); ctx.fillRect(x + 7, y - 2, 2, 7); // descansabrazos
     }
 
+    // textura sobre la superficie de la mesa (idéntica al HTML)
+    function texOverlay(x, y, w, h, tex) {
+      if (tex === 'vetas') { ctx.fillStyle = 'rgba(0,0,0,0.12)'; for (let gx = x + 4; gx < x + w - 2; gx += 7) ctx.fillRect(gx, y + 3, 1, h - 5); }
+      else if (tex === 'cuadros') { ctx.fillStyle = 'rgba(0,0,0,0.10)'; for (let gx = x + 5; gx < x + w - 2; gx += 8) ctx.fillRect(gx, y + 2, 1, h - 3); for (let gy = y + 5; gy < y + h - 1; gy += 8) ctx.fillRect(x + 1, gy, w - 2, 1); }
+    }
     // ---- escritorio (madera con vetas, idéntico al HTML) ----
     function drawDesk(m) {
       const wood = (m.color && m.color !== '#ffffff') ? m.color : '#c89a5a';
       const wsh = shade(wood, -0.25), whi = shade(wood, 0.15);
+      const tex = m.tex || 'liso';
       const dr = (rx, ry, rw, rh) => {
         ctx.fillStyle = wsh; ctx.fillRect(rx, ry + rh - 3, rw, 3);
         ctx.fillStyle = wood; ctx.fillRect(rx, ry, rw, rh - 3);
         ctx.fillStyle = whi; ctx.fillRect(rx, ry, rw, 2);
-        ctx.fillStyle = 'rgba(60,35,10,0.12)';
-        for (let gx = rx + 5; gx < rx + rw - 2; gx += 8) ctx.fillRect(gx, ry + 3, 1, rh - 8);
+        texOverlay(rx, ry, rw, rh - 3, tex);
         ctx.strokeStyle = '#5a3a18'; ctx.lineWidth = 1.2; ctx.strokeRect(rx + 0.5, ry + 0.5, rw - 1, rh - 1);
       };
       if (m.forma === 'L') {
@@ -298,8 +304,10 @@ export default function PixelRoom({
 
       // mobiliario interior del OXXO
       drawOxxoRoom();
-      // refrigerador del laboratorio
-      drawFridge(LAB_FRIDGE.x, LAB_FRIDGE.y);
+      // refrigerador del laboratorio (movible)
+      const fr = s.fridge || FRIDGE_DEFAULT;
+      drawFridge(fr.x, fr.y);
+      if (s.editSelId === '__fridge') drawSel(fr);
 
       // ---- y-sort: muebles + sillas + sprites ----
       const draws = [];
@@ -335,12 +343,20 @@ export default function PixelRoom({
         }});
       });
 
-      // jugador
+      // jugador (con aura debajo y mascota al lado)
       const p2=s.pos||{x:LAB_W/2,y:LAB_H/2};
       draws.push({y:p2.y, fn:()=>{
+        if (s.aura && s.aura.color && s.aura.color !== 'transparent' && s.aura.id !== 'aura_none') {
+          ctx.save(); ctx.globalAlpha = 0.5; ctx.fillStyle = s.aura.color;
+          ctx.beginPath(); ctx.ellipse(p2.x, p2.y, 13, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        }
         drawAvatar(ctx, p2.x, p2.y+4, {
           ...(s.playerSprite||{}), dir:s.dir, sitting:s.sitting, frame:s.moving?s.phase:0
         }, 1.05);
+        if (s.pet && s.pet.emoji && s.pet.id !== 'pet_none') {
+          ctx.font = '11px serif'; ctx.textAlign = 'center';
+          ctx.fillText(s.pet.emoji, p2.x + 14, p2.y); ctx.textAlign = 'left';
+        }
         labels.push({ cx:p2.x, fy:p2.y+4, name:s.playerName, you:true });
       }});
 

@@ -16,8 +16,11 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useLang } from '../context/LangContext.jsx';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { STAGE_W, STAGE_H, SEAT } from '../lib/lab-layout.js';
-import { WORLD_W, WORLD_H, walkableBody, hitsOxxo, nearShop, SHOP, SPAWN_HALL } from '../lib/world.js';
-import { MESA_COLORS } from '../lib/lab-layout.js';
+import {
+  WORLD_W, WORLD_H, LAB_W, LAB_H, SCX, SCY, scaleMesa,
+  walkableBody, hitsOxxo, nearShop, SHOP, SPAWN_HALL,
+  FRIDGE_DEFAULT, FURNI_COLORS, FURNI_TEX,
+} from '../lib/world.js';
 import {
   TIENDA, EQUIPADO_DEFAULT, PELOS, PIELES, PELO_COLORES, CARAS, itemById, ES_ACUMULABLE,
   CAMISA_COLORES, PANTALON_COLORES, LENTES,
@@ -32,18 +35,19 @@ import PixelRoom from '../components/PixelRoom.jsx';
 import AvatarPixel from '../components/AvatarPixel.jsx';
 import { spriteFromEquipado, seededSprite } from '../lib/avatarSprite.js';
 
-const STEP = 9, AV = 30;
+const STEP = 4, AV = 14;
 // Mismo recorte que el croquis (hueco abajo-izquierda).
 const L_CLIP = 'polygon(0 0,100% 0,100% 100%,72% 100%,72% 48%,0 48%)';
 const SPAWN_FALLBACK = SPAWN_HALL;                       // boca del pasillo si no tienes mesa
 const BASE_OWNED = ['out_bata', 'hat_none', 'pet_none', 'desk_gris', 'aura_none'];
+const LAYOUT_KEY = 'labgame_layout';                     // overrides del JUEGO (no toca el croquis)
 
 export default function GameView({ go }) {
   const lab = useLab();
   const { session, invAccess, accounts, isAdmin } = useAuth();
   const { t } = useLang();
   const inv = useInventory();
-  const { mesas, presentes, presencia, presentesPorMesa, ensureLoaded, nombreDe, guardarMesa, setMesaLocal } = lab;
+  const { mesas, presentes, presencia, presentesPorMesa, ensureLoaded, nombreDe } = lab;
 
   useEffect(() => { ensureLoaded(); }, [ensureLoaded]);
 
@@ -82,10 +86,31 @@ export default function GameView({ go }) {
     try { localStorage.setItem('labgame_zoom', String(v)); } catch (_) {}
   }, []);
 
-  // --- editor de la sala (solo admin) ---
+  // --- editor del JUEGO (solo admin). Persiste en localStorage; NO toca el croquis. ---
   const [editMode, setEditMode] = useState(false);
   const [selMesaId, setSelMesaId] = useState(null);
-  const selMesa = useMemo(() => (mesas || []).find((m) => m.id === selMesaId) || null, [mesas, selMesaId]);
+  const [layout, setLayout] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}'); } catch (_) { return {}; }
+  });
+  const saveLayout = useCallback((next) => {
+    setLayout(next);
+    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(next)); } catch (_) {}
+  }, []);
+  // refrigerador movible (parte del layout del juego)
+  const fridge = useMemo(() => ({ ...FRIDGE_DEFAULT, ...(layout.__fridge || {}) }), [layout]);
+
+  // Mesas del JUEGO: croquis (Supabase) ESCALADO a 19×15 + overrides locales del juego.
+  // El croquis original no se modifica con esto.
+  const gameMesas = useMemo(() => (mesas || []).map((m) => {
+    const g = scaleMesa(m);
+    const ov = layout[m.id];
+    return ov ? { ...g, ...ov } : g;
+  }), [mesas, layout]);
+
+  const selMesa = useMemo(
+    () => (selMesaId === '__fridge' ? { id: '__fridge', nombre: 'Refrigerador', kind: 'refri', ...fridge } : gameMesas.find((m) => m.id === selMesaId)) || null,
+    [gameMesas, selMesaId, fridge]
+  );
 
   // --- quiz ---
   const [quizPreguntas, setQuizPreguntas] = useState([]);
@@ -255,38 +280,42 @@ export default function GameView({ go }) {
     return { x: px / Z + camx, y: py / Z + camy };
   }, []);
 
+  // aplica un override al layout del JUEGO (no toca el croquis)
+  const setOverride = useCallback((id, patch) => {
+    saveLayout((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...patch } }));
+  }, [saveLayout]);
+
   const onEditPointerDown = useCallback((e) => {
     const w = pointerToWorld(e); if (!w) return;
-    const hit = (mesas || []).find((m) => w.x >= m.x && w.x <= m.x + m.w && w.y >= m.y && w.y <= m.y + m.h);
+    const hit = gameMesas.find((m) => w.x >= m.x && w.x <= m.x + m.w && w.y >= m.y && w.y <= m.y + m.h);
+    const onFridge = w.x >= fridge.x && w.x <= fridge.x + fridge.w && w.y >= fridge.y && w.y <= fridge.y + fridge.h;
     if (hit) {
       setSelMesaId(hit.id);
-      editRef.current = { id: hit.id, ox: w.x - hit.x, oy: w.y - hit.y };
+      editRef.current = { id: hit.id, ox: w.x - hit.x, oy: w.y - hit.y, w: hit.w, h: hit.h };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+    } else if (onFridge) {
+      setSelMesaId('__fridge');
+      editRef.current = { id: '__fridge', ox: w.x - fridge.x, oy: w.y - fridge.y, w: fridge.w, h: fridge.h };
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
     } else {
       setSelMesaId(null);
     }
-  }, [mesas, pointerToWorld]);
+  }, [gameMesas, fridge, pointerToWorld]);
 
   const onEditPointerMove = useCallback((e) => {
     const d = editRef.current; if (!d) return;
     const w = pointerToWorld(e); if (!w) return;
-    const m = (mesas || []).find((x) => x.id === d.id); if (!m) return;
-    const nx = clamp(Math.round(w.x - d.ox), 0, WORLD_W - m.w);
-    const ny = clamp(Math.round(w.y - d.oy), 0, WORLD_H - m.h);
-    setMesaLocal(d.id, { x: nx, y: ny });
-  }, [mesas, pointerToWorld, setMesaLocal]);
+    const nx = clamp(Math.round(w.x - d.ox), 0, WORLD_W - d.w);
+    const ny = clamp(Math.round(w.y - d.oy), 0, WORLD_H - d.h);
+    setOverride(d.id, { x: nx, y: ny });
+  }, [pointerToWorld, setOverride]);
 
-  const onEditPointerUp = useCallback(() => {
-    const d = editRef.current; if (!d) return;
-    editRef.current = null;
-    const m = (mesas || []).find((x) => x.id === d.id);
-    if (m) guardarMesa(d.id, { x: m.x, y: m.y });
-  }, [mesas, guardarMesa]);
+  const onEditPointerUp = useCallback(() => { editRef.current = null; }, []);
 
   const editMesa = useCallback((patch) => {
     if (!selMesaId) return;
-    guardarMesa(selMesaId, patch);
-  }, [selMesaId, guardarMesa]);
+    setOverride(selMesaId, patch);
+  }, [selMesaId, setOverride]);
 
   const [pos, setPos] = useState(SPAWN_FALLBACK);
   const [dir, setDir] = useState('up');
@@ -296,12 +325,13 @@ export default function GameView({ go }) {
   const keys = useRef({});
   const posRef = useRef(SPAWN_FALLBACK);
   const zoomRef = useRef(zoom); zoomRef.current = zoom;
+  const fridgeRef = useRef(fridge); fridgeRef.current = fridge;
   const editRef = useRef(null);   // estado de arrastre del editor
   const overlayRef = useRef(null);
   const movedRef = useRef(false);
   const nearRef = useRef(null);
   const nearShopRef = useRef(false);
-  const obstaculos = useMemo(() => (mesas || []).filter((m) => m && typeof m.x === 'number'), [mesas]);
+  const obstaculos = useMemo(() => gameMesas.filter((m) => m && typeof m.x === 'number'), [gameMesas]);
   const modulos = useMemo(() => obstaculos.filter((m) => m.kind && m.kind !== 'mesa'), [obstaculos]);
 
   // Mi mesa = aquella cuyos dueños incluyen mi nombre (o mi email).
@@ -310,13 +340,13 @@ export default function GameView({ go }) {
     const full = (session.nombre || '').trim().toLowerCase();
     const first = full.split(' ')[0];
     const myEmail = (session.email || '').trim().toLowerCase();
-    return (mesas || []).find((m) => Array.isArray(m.duenos) && m.duenos.some((d) => {
+    return gameMesas.find((m) => Array.isArray(m.duenos) && m.duenos.some((d) => {
       const dn = String(d || '').trim().toLowerCase();
       if (myEmail && dn === myEmail) return true;
       if (!full) return false;
       return dn === full || dn === first || dn.split(' ')[0] === first;
     })) || null;
-  }, [mesas, session]);
+  }, [gameMesas, session]);
 
   // Punto de aparición: la misma silla que ocuparía mi fantasma en mi mesa.
   const spawnPoint = useMemo(() => {
@@ -381,7 +411,7 @@ export default function GameView({ go }) {
       const d = Math.hypot(s.x - p.x, s.y - p.y);
       if (d < bd) { bd = d; best = s; }
     });
-    if (best && bd < 64) {
+    if (best && bd < 30) {
       posRef.current = { x: best.x, y: best.y };
       setPos({ x: best.x, y: best.y });
       setSitting(true); setDir('up'); movedRef.current = true;
@@ -407,16 +437,16 @@ export default function GameView({ go }) {
       // movimiento eje por eje, respetando salas (lab + pasillo + OXXO) y mobiliario
       let nx = p.x, ny = p.y;
       const tryX = p.x + dx;
-      if (walkableBody(tryX, p.y) && !hits(tryX, p.y, obstaculos) && !hitsOxxo(tryX, p.y)) nx = tryX;
+      if (walkableBody(tryX, p.y) && !hits(tryX, p.y, obstaculos) && !hitsOxxo(tryX, p.y, 7, fridgeRef.current)) nx = tryX;
       const tryY = ny + dy;
-      if (walkableBody(nx, tryY) && !hits(nx, tryY, obstaculos) && !hitsOxxo(nx, tryY)) ny = tryY;
+      if (walkableBody(nx, tryY) && !hits(nx, tryY, obstaculos) && !hitsOxxo(nx, tryY, 7, fridgeRef.current)) ny = tryY;
       posRef.current = { x: nx, y: ny };
       setPos({ x: nx, y: ny });
       // caja del OXXO (E para comprar)
       const ns = nearShop(nx, ny);
       if (ns !== nearShopRef.current) { nearShopRef.current = ns; setNearShopUI(ns); }
       // módulo cercano
-      const mod = modulos.find((o) => cerca(nx, ny, o, 28)) || null;
+      const mod = modulos.find((o) => cerca(nx, ny, o, 12)) || null;
       if (mod !== nearRef.current) { nearRef.current = mod; setNearModule(mod); }
     }, 33);
     return () => clearInterval(iv);
@@ -461,7 +491,7 @@ export default function GameView({ go }) {
       if (key.includes('@')) return raw;
       return emailByName[key] || emailByName[key.split(' ')[0]] || null;
     };
-    (mesas || []).forEach((m) => {
+    gameMesas.forEach((m) => {
       if (!m.seats) return;
       const onSeats = m.seats.filter((s) => s.on);
       if (!onSeats.length) return;
@@ -491,13 +521,14 @@ export default function GameView({ go }) {
       });
     });
     return out;
-  }, [mesas, presentesPorMesa, session, emailByName, lookByEmail, presentEmails]);
+  }, [gameMesas, presentesPorMesa, session, emailByName, lookByEmail, presentEmails, nombreDe]);
 
   const sittingRef = useRef(true); sittingRef.current = sitting;
   const seatRef = useRef([]); seatRef.current = seatPeople;
 
   const playerSprite = useMemo(() => spriteFromEquipado(equipado, itemById), [equipado]);
   const pet = itemById(equipado.mascota);
+  const aura = itemById(equipado.aura);
   const deskFloor = itemById(equipado.escritorio) || itemById('desk_gris');
   const decoItems = deco.map(itemById).filter(Boolean);
 
@@ -565,7 +596,8 @@ export default function GameView({ go }) {
       {/* CUARTO — render pixel-art (GBA) del croquis real */}
       <div style={{ position: 'relative', maxWidth: 880, margin: '0 auto' }}>
         <PixelRoom
-          mesas={mesas}
+          mesas={gameMesas}
+          fridge={fridge}
           seatPeople={seatPeople}
           pos={pos}
           dir={dir}
@@ -573,6 +605,8 @@ export default function GameView({ go }) {
           sitting={sitting}
           phase={phase}
           playerSprite={playerSprite}
+          pet={pet}
+          aura={aura}
           decoItems={decoItems}
           miMesa={miMesa}
           nearModule={nearModule}
@@ -895,12 +929,13 @@ function EditPanel({ mesa, onChange, onDeselect }) {
     return (
       <div style={editWrap}>
         <span style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>✎ Modo editar (admin)</span>
-        <span style={{ fontSize: 12.5, color: '#78350F' }}>Haz clic en una mesa para seleccionarla y arrástrala para moverla. Los cambios se guardan para todos.</span>
+        <span style={{ fontSize: 12.5, color: '#78350F' }}>Haz clic en una mesa (o el refri) para seleccionarla y arrástrala para moverla. Estos cambios son del JUEGO y no modifican el croquis.</span>
       </div>
     );
   }
   const esMesa = mesa.kind === 'mesa';
-  const step = (k, d, min, max) => onChange({ [k]: Math.max(min, Math.min(max, (mesa[k] || 0) + d)) });
+  const esRefri = mesa.kind === 'refri';
+  const step = (k, d, min, max) => onChange({ [k]: Math.round(Math.max(min, Math.min(max, (mesa[k] || 0) + d))) });
   return (
     <div style={editWrap}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -908,37 +943,50 @@ function EditPanel({ mesa, onChange, onDeselect }) {
         <span style={{ fontSize: 11.5, color: '#78350F' }}>{esMesa ? `forma ${mesa.forma || 'rect'}` : mesa.kind}</span>
         <button onClick={onDeselect} style={{ marginLeft: 'auto', ...miniBtn }}>✕ deseleccionar</button>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-        <label style={editLbl}>Ancho
-          <span style={stepGroup}>
-            <button onClick={() => step('w', -10, 40, 320)} style={miniBtn}>−</button>
-            <b style={{ minWidth: 30, textAlign: 'center' }}>{mesa.w}</b>
-            <button onClick={() => step('w', 10, 40, 320)} style={miniBtn}>＋</button>
-          </span>
-        </label>
-        <label style={editLbl}>Alto
-          <span style={stepGroup}>
-            <button onClick={() => step('h', -10, 32, 240)} style={miniBtn}>−</button>
-            <b style={{ minWidth: 30, textAlign: 'center' }}>{mesa.h}</b>
-            <button onClick={() => step('h', 10, 32, 240)} style={miniBtn}>＋</button>
-          </span>
-        </label>
-        {esMesa && (
-          <label style={editLbl}>Forma
+      {esRefri && <span style={{ fontSize: 12, color: '#78350F' }}>Arrástralo para moverlo por el laboratorio.</span>}
+      {!esRefri && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <label style={editLbl}>Ancho
             <span style={stepGroup}>
-              {['rect', 'L'].map((f) => (
-                <button key={f} onClick={() => onChange({ forma: f })} style={{ ...miniBtn, background: mesa.forma === f ? '#CA8A04' : '#fff', color: mesa.forma === f ? '#fff' : '#3a2d00', minWidth: 40 }}>{f}</button>
-              ))}
+              <button onClick={() => step('w', -5, 16, 200)} style={miniBtn}>−</button>
+              <b style={{ minWidth: 30, textAlign: 'center' }}>{Math.round(mesa.w)}</b>
+              <button onClick={() => step('w', 5, 16, 200)} style={miniBtn}>＋</button>
             </span>
           </label>
-        )}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-        <span style={editLbl}>Color</span>
-        {MESA_COLORS.map((c) => (
-          <button key={c} onClick={() => onChange({ color: c })} title={c} style={{ width: 24, height: 24, borderRadius: 6, background: c === '#ffffff' ? 'repeating-linear-gradient(45deg,#fff,#fff 3px,#E2E8F0 3px,#E2E8F0 6px)' : c, cursor: 'pointer', border: `3px solid ${mesa.color === c ? '#CA8A04' : 'rgba(0,0,0,0.15)'}` }} />
-        ))}
-      </div>
+          <label style={editLbl}>Alto
+            <span style={stepGroup}>
+              <button onClick={() => step('h', -5, 12, 160)} style={miniBtn}>−</button>
+              <b style={{ minWidth: 30, textAlign: 'center' }}>{Math.round(mesa.h)}</b>
+              <button onClick={() => step('h', 5, 12, 160)} style={miniBtn}>＋</button>
+            </span>
+          </label>
+          {esMesa && (
+            <label style={editLbl}>Forma
+              <span style={stepGroup}>
+                {['rect', 'L'].map((f) => (
+                  <button key={f} onClick={() => onChange({ forma: f })} style={{ ...miniBtn, background: mesa.forma === f ? '#CA8A04' : '#fff', color: mesa.forma === f ? '#fff' : '#3a2d00', minWidth: 40 }}>{f}</button>
+                ))}
+              </span>
+            </label>
+          )}
+        </div>
+      )}
+      {!esRefri && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+          <span style={editLbl}>Color</span>
+          {FURNI_COLORS.map((c) => (
+            <button key={c} onClick={() => onChange({ color: c })} title={c} style={{ width: 24, height: 24, borderRadius: 6, background: c, cursor: 'pointer', border: `3px solid ${mesa.color === c ? '#CA8A04' : 'rgba(0,0,0,0.15)'}` }} />
+          ))}
+        </div>
+      )}
+      {!esRefri && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+          <span style={editLbl}>Textura</span>
+          {FURNI_TEX.map((tx) => (
+            <button key={tx} onClick={() => onChange({ tex: tx })} style={{ ...miniBtn, textTransform: 'capitalize', background: (mesa.tex || 'liso') === tx ? '#CA8A04' : '#fff', color: (mesa.tex || 'liso') === tx ? '#fff' : '#3a2d00' }}>{tx}</button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1073,8 +1121,8 @@ function CompactList({ items, inv }) {
 
 /* ---------- helpers ---------- */
 function hits(cx, cy, obstaculos) {
-  const half = AV / 2 - 4;
-  const l = cx - half, r = cx + half, tp = cy - half + 6, b = cy + half;
+  const half = 5;
+  const l = cx - half, r = cx + half, tp = cy - half + 4, b = cy + half;
   const overlap = (ox, oy, ow, oh) => (r > ox && l < ox + ow && b > oy && tp < oy + oh);
   return obstaculos.some((o) => {
     if (!overlap(o.x, o.y, o.w, o.h)) return false;
