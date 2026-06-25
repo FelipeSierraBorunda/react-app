@@ -1,18 +1,13 @@
 /* =====================================================================
-   avatarSprite.js — Sprite pixel-art detallado (estilo RPG top-down).
-   ---------------------------------------------------------------------
-   Una sola función dibuja el avatar en cualquier <canvas>, parametrizada
-   para dar MUCHA variedad: peinados, camisas, pantalones, lentes, gorras,
-   tono de piel y color de pelo. Se usa en el juego (PixelRoom) y en la
-   personalización de "Mi cuenta" (AvatarPixel), así el modelo es idéntico
-   en todos lados. Arte 100% original.
+   avatarSprite.js — Sprite pixel-art "cabezón" (idéntico al del HTML
+   Lab Game). Una sola función dibuja el avatar en cualquier <canvas>,
+   parametrizada con peinados, camisa, pantalón, lentes, gorra, piel y
+   color de pelo. Se usa en el juego (PixelRoom) y en la personalización
+   (AvatarPixel), así el modelo es idéntico en todos lados.
 
-   Anclaje: (cx, cy) = punto medio de los PIES. El sprite mide 16×26 px
-   lógicos; `S` es la escala en píxeles por unidad.
+   Anclaje: (cx, cy) = punto medio de los PIES. Sprite 16×26 lógico; `S`
+   es la escala en píxeles por unidad.
    ===================================================================== */
-
-const OUT = '#1b2236';          // contorno
-const SHADOW = 'rgba(15,23,42,0.22)';
 
 // aclara (+) / oscurece (-) un color hex
 export function shade(hex, amt) {
@@ -24,184 +19,129 @@ export function shade(hex, amt) {
   return '#' + x(r) + x(g) + x(b);
 }
 
-export function drawAvatar(ctx, cx, cy, o = {}, S = 3) {
-  const dir = o.dir || 'down';
-  const skin = o.skin || '#F2C9A0';
-  const skinSh = shade(skin, -0.18);
-  const hairStyle = o.hairStyle || 'pelo_corto';
-  const hairColor = o.hairColor || '#3B2A20';
-  const shirt = o.shirtColor || '#E2E8F0';
-  const shirtSh = shade(shirt, -0.2), shirtHi = shade(shirt, 0.16);
-  const accent = o.shirtAccent || null;
-  const pants = o.pantsColor || '#3A4256';
-  const pantsSh = shade(pants, -0.22);
-  const shoe = '#23304a';
-  const sleeping = o.sleeping;
-  const sitting = o.sitting;
-  const frame = o.frame || 0;            // 0 idle, 1/3 paso, 2 idle
-  const step = frame === 1 ? 1 : frame === 3 ? -1 : 0;
+export function drawAvatar(ctx, cx, cy, o = {}, S = 1) {
+  S = S || 1;
+  const dir = o.dir || 'down', skin = o.skin || '#F2C9A0', skinSh = shade(skin, -0.18), skinHi = shade(skin, 0.12);
+  const hair = o.hairColor || '#3B2A20', hStyle = o.hairStyle || 'pelo_corto';
+  const brow = shade(hair, -0.15);
+  // molde fijo (forma), pero color de ropa sí se aplica
+  const COAT = o.shirtColor || '#ffffff', COAT_SH = shade(COAT, -0.15), COAT_LP = shade(COAT, -0.08);
+  const PANT = o.pantsColor || '#f1f3f6', PANT_SH = shade(PANT, -0.18), SHOE = '#3a2a1e', SHOE_SH = '#2a1d14';
+  const sit = o.sitting, sleep = o.sleeping, fr = o.frame || 0, step = fr === 1 ? 1 : fr === 3 ? -1 : 0;
+  const ox = Math.round(cx - 8 * S), oy = Math.round(cy - 26 * S);
+  const P = (c, px, py, w, h) => { ctx.fillStyle = c; ctx.fillRect(ox + px * S, oy + py * S, w * S, h * S); };
+  // sombra
+  ctx.fillStyle = 'rgba(15,23,42,0.22)'; ctx.beginPath(); ctx.ellipse(cx, cy - 0.5 * S, 6.5 * S, 2.3 * S, 0, 0, Math.PI * 2); ctx.fill();
 
-  // origen (esquina sup-izq del sprite 16×26)
-  const ox = Math.round(cx - 8 * S);
-  const oy = Math.round(cy - 25 * S);
-  const P = (px, py, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(ox + px * S, oy + py * S, w * S, h * S); };
-
-  // sombra al piso
-  ctx.fillStyle = SHADOW;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy - 0.5 * S, 6 * S, 2.2 * S, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // ---------- PIERNAS / ZAPATOS ----------
-  if (!sitting) {
-    const lA = step, lB = -step;            // alternan al caminar
-    // pierna izq
-    P(4, 18 + Math.max(0, lA), 3, 5 - Math.max(0, lA), pants); P(4, 17, 3, 1, pantsSh);
-    P(4, 22 + lA, 3, 2, shoe);
-    // pierna der
-    P(9, 18 + Math.max(0, lB), 3, 5 - Math.max(0, lB), pants); P(9, 17, 3, 1, pantsSh);
-    P(9, 22 + lB, 3, 2, shoe);
-    // contorno piernas
-    P(4, 17, 1, 7, shade(pants, -0.35)); P(11, 17, 1, 7, shade(pants, -0.35));
+  // ---- PIERNAS (cuerpo muy chico) ----
+  if (!sit) {
+    P(SHOE_SH, 5, 19, 3, 5); P(PANT, 5, 19, 2, 2); P(skin, 5, 21, 2, 1); P(SHOE, 5, 22 + step, 2, 2);
+    P(SHOE_SH, 8, 19, 3, 5); P(PANT, 8, 19, 2, 2); P(skin, 8, 21, 2, 1); P(SHOE, 8, 22 - step, 2, 2);
   } else {
-    // sentado: muslos hacia el frente
-    P(4, 19, 8, 4, pants); P(4, 19, 8, 1, pantsSh); P(4, 22, 8, 2, shoe);
+    P(SHOE_SH, 5, 20, 6, 4); P(PANT, 5, 20, 6, 1); P(skin, 5, 21, 6, 1); P(SHOE, 5, 22, 6, 2);
   }
 
-  // ---------- TORSO (camisa / bata) ----------
-  const torsoTop = 11, torsoH = sitting ? 7 : 8;
-  P(3, torsoTop, 10, torsoH, OUT);                 // contorno
-  P(4, torsoTop, 8, torsoH - 1, shirt);            // relleno
-  P(4, torsoTop, 8, 1, shirtHi);                   // luz hombros
-  P(4, torsoTop + torsoH - 2, 8, 1, shirtSh);      // sombra bajo
-  // acento (franja/cierre) para outfits premium
-  if (accent) { P(7, torsoTop + 1, 2, torsoH - 2, accent); }
-  // bata/lab coat: collar en V visible cuando la camisa es blanca/clara
-  const isLabCoat = !accent && (shirt === '#E2E8F0' || shirt === '#F6F8FC' || shirt === '#EEF2F7' || shirt === '#FFFFFF' || shirt === '#ffffff' || shirt.toLowerCase() === '#e2e8f0' || shirt.toLowerCase() === '#eef2f7');
-  if (isLabCoat && dir !== 'up') {
-    P('#d0d8e8', 6, torsoTop + 1, 2, torsoH - 2);   // solapa izquierda
-    P('#d0d8e8', 8, torsoTop + 1, 2, 3);             // solapa derecha (corta)
-    P(OUT, 7, torsoTop + 1, 1, torsoH - 2);          // línea central bata
-  }
-  // brazos / mangas
-  const armSwing = sitting ? 0 : step;
-  P(2, torsoTop + 1, 2, 5, OUT); P(2, torsoTop + 1 - armSwing, 2, 5, shade(shirt, -0.08));
-  P(12, torsoTop + 1, 2, 5, OUT); P(12, torsoTop + 1 + armSwing, 2, 5, shade(shirt, -0.08));
-  // manos
-  P(2, torsoTop + 6 - armSwing, 2, 2, skin); P(12, torsoTop + 6 + armSwing, 2, 2, skin);
+  // ---- TORSO (bata, muy chico) ----
+  const tT = 14, tH = 5;
+  P(SHOE_SH, 5, tT, 6, tH);
+  P(COAT, 6, tT, 4, tH - 1);
+  P(COAT_SH, 6, tT + tH - 2, 4, 1);
+  if (dir !== 'up') { P(COAT_LP, 6, tT + 1, 1, tH - 2); P(COAT_LP, 9, tT + 1, 1, 2); P(SHOE_SH, 8, tT + 1, 1, tH - 2); }
 
-  // ---------- CABEZA ----------
-  const hy = 2;                                    // top de la cabeza
-  P(3, hy, 10, 9, OUT);                            // contorno cabeza
-  P(4, hy + 1, 8, 7, skin);                        // cara
-  P(4, hy + 6, 8, 1, skinSh);                      // mentón sombreado
-  // orejas (de perfil)
-  if (dir === 'left') P(3, hy + 4, 1, 2, skinSh);
-  if (dir === 'right') P(12, hy + 4, 1, 2, skinSh);
+  // ---- BRAZOS ----
+  const aw = sit ? 0 : step;
+  P(SHOE_SH, 4, tT, 2, 4); P(COAT, 4, tT, 2, 2 - Math.max(0, aw)); P(skin, 4, tT + 2 - aw, 2, 2);
+  P(SHOE_SH, 10, tT, 2, 4); P(COAT, 10, tT, 2, 2 - Math.max(0, aw)); P(skin, 10, tT + 2 + aw, 2, 2);
 
-  // ---------- PELO ----------
-  drawHair(P, hairStyle, hairColor, dir, hy, shade);
+  // ---- CABEZA GRANDE (cabezón) ----
+  const hy = 0;
+  P(SHOE_SH, 1, hy, 14, 14);                  // contorno cabeza (14x14)
+  P(skin, 2, hy + 1, 12, 12);                 // piel
+  P(skinHi, 2, hy + 1, 12, 1);                // luz frente
+  P(skinSh, 2, hy + 11, 12, 1);               // mentón
+  // orejas
+  P(SHOE_SH, 0, hy + 6, 1, 3); P(skin, 0, hy + 7, 1, 2);
+  P(SHOE_SH, 15, hy + 6, 1, 3); P(skin, 15, hy + 7, 1, 2);
+  if (dir === 'left') P(skinSh, 2, hy + 5, 1, 4);
+  if (dir === 'right') P(skinSh, 13, hy + 5, 1, 4);
 
-  // ---------- CARA ----------
+  drawHair(P, hStyle, hair, dir, hy);
+
+  // ---- CARA ----
   if (dir !== 'up') {
-    const eyeY = hy + 4;
-    if (sleeping) {
-      P(5, eyeY + 1, 2, 1, OUT); P(9, eyeY + 1, 2, 1, OUT);
+    const ey = hy + 6, eyebrowY = hy + 4;
+    if (sleep) {
+      P(SHOE_SH, 4, ey + 1, 3, 1); P(SHOE_SH, 9, ey + 1, 3, 1);
     } else if (dir === 'left') {
-      P(5, eyeY, 1.6, 2, OUT);
+      P(brow, 4, eyebrowY, 3, 1);
+      P(SHOE_SH, 4, ey, 3, 3); P('#ffffff', 4, ey, 3, 3); P('#2a1d14', 5, ey + 1, 2, 2);
     } else if (dir === 'right') {
-      P(9.4, eyeY, 1.6, 2, OUT);
+      P(brow, 9, eyebrowY, 3, 1);
+      P(SHOE_SH, 9, ey, 3, 3); P('#ffffff', 9, ey, 3, 3); P('#2a1d14', 9, ey + 1, 2, 2);
     } else {
-      P(5, eyeY, 1.6, 2, OUT); P(9.4, eyeY, 1.6, 2, OUT);
-      // boca
-      P(7, eyeY + 3, 2, 1, shade(skin, -0.4));
+      P(brow, 4, eyebrowY, 3, 1); P(brow, 9, eyebrowY, 3, 1);
+      P(SHOE_SH, 4, ey, 3, 3); P(SHOE_SH, 9, ey, 3, 3);
+      P('#ffffff', 4, ey, 3, 3); P('#ffffff', 9, ey, 3, 3);
+      P('#2a1d14', 5, ey + 1, 2, 2); P('#2a1d14', 10, ey + 1, 2, 2);
+      P('#ffffff', 5, ey + 1, 1, 1); P('#ffffff', 10, ey + 1, 1, 1);   // brillo
+      P(skinSh, 8, ey + 3, 1, 1);                                       // nariz
     }
-    // ---------- LENTES ----------
-    drawGlasses(P, o.glasses, dir, eyeY);
+    drawGlasses(P, o.glasses, dir, ey);
   }
-
-  // ---------- GORRA / SOMBRERO ----------
-  if (o.hatType && o.hatType !== 'hat_none') drawHat(P, o.hatType, o.hatColor || '#DC2626', dir, hy, shade);
-
-  // ---------- z (dormido) ----------
-  if (sleeping) { ctx.fillStyle = '#64748b'; ctx.font = `${5 * S}px "Silkscreen",monospace`; ctx.fillText('z', ox + 14 * S, oy + 2 * S); }
+  if (o.hatType && o.hatType !== 'hat_none') drawHat(P, o.hatType, o.hatColor || '#DC2626', dir, hy);
+  if (sleep) { ctx.fillStyle = '#64748b'; ctx.font = (5 * S) + 'px "Silkscreen",monospace'; ctx.fillText('z', ox + 15 * S, oy); }
 }
 
-function drawHair(P, style, color, dir, hy, shade) {
+function drawHair(P, style, color, dir, hy) {
   const hi = shade(color, 0.18), sh = shade(color, -0.25);
-  if (style === 'pelo_none' || style === 'pelo_rapado') {
-    // rapado: solo sombra superior
-    P(4, hy, 8, 2, color); return;
-  }
+  if (style === 'pelo_none' || style === 'pelo_rapado') { P(color, 4, hy, 8, 2); return; }
   if (dir === 'up') {
-    // de espaldas: cubre casi toda la cabeza
-    P(3, hy, 10, 7, color); P(3, hy, 10, 2, hi);
-    if (style === 'pelo_largo' || style === 'pelo_coleta') P(3, hy + 7, 10, 3, color);
+    switch (style) {
+      case 'pelo_largo': P(color, 2, hy, 12, 9); P(hi, 2, hy, 12, 2); P(color, 2, hy + 9, 12, 4); break;
+      case 'pelo_coleta': P(color, 2, hy, 12, 9); P(hi, 2, hy, 12, 2); P(color, 6, hy + 9, 4, 5); break;
+      case 'pelo_chongo': P(color, 2, hy, 12, 9); P(hi, 2, hy, 12, 2); P(color, 6, hy - 4, 4, 4); P(hi, 6, hy - 4, 4, 1); break;
+      case 'pelo_afro': P(color, 1, hy - 3, 14, 15); P(hi, 1, hy - 3, 14, 2); break;
+      case 'pelo_mohawk': P(color, 2, hy, 12, 9); P(color, 7, hy - 4, 3, 5); P(hi, 7, hy - 4, 3, 2); break;
+      case 'pelo_punk': P(color, 2, hy, 12, 8); P(color, 4, hy - 5, 1, 5); P(color, 8, hy - 6, 1, 6); P(color, 11, hy - 5, 1, 5); break;
+      case 'pelo_fleco': P(color, 2, hy, 12, 9); P(hi, 2, hy, 12, 2); break;
+      default: P(color, 2, hy, 12, 8); P(hi, 2, hy, 12, 2);
+    }
     return;
   }
-  // top + laterales (frente)
   switch (style) {
-    case 'pelo_largo':
-      P(3, hy - 1, 10, 4, color); P(3, hy - 1, 10, 1, hi);
-      P(3, hy + 2, 2, 7, color); P(11, hy + 2, 2, 7, color); break;       // mechones a los lados
-    case 'pelo_coleta':
-      P(3, hy - 1, 10, 4, color); P(3, hy - 1, 10, 1, hi);
-      P(3, hy + 2, 1, 4, color); P(12, hy + 2, 1, 4, color);
-      P(13, hy + 1, 2, 6, color); break;                                  // coleta lateral
-    case 'pelo_chongo':
-      P(3, hy - 1, 10, 4, color); P(3, hy - 1, 10, 1, hi);
-      P(6, hy - 4, 4, 4, color); P(6, hy - 4, 4, 1, hi); break;           // moño arriba
-    case 'pelo_afro':
-      P(2, hy - 3, 12, 6, color); P(2, hy - 3, 12, 2, hi);
-      P(2, hy + 1, 2, 4, color); P(12, hy + 1, 2, 4, color); break;
-    case 'pelo_mohawk':
-      P(6, hy - 4, 4, 6, color); P(6, hy - 4, 4, 2, hi); break;           // cresta
-    case 'pelo_fleco':
-      P(3, hy - 1, 10, 4, color); P(3, hy - 1, 10, 1, hi);
-      P(4, hy + 3, 8, 1, sh); break;                                      // flequillo recto
-    case 'pelo_punk':
-      P(4, hy - 2, 8, 4, color); P(4, hy - 4, 1, 3, color); P(7, hy - 5, 1, 4, color); P(10, hy - 4, 1, 3, color); break; // picos
-    default: // pelo_corto
-      P(3, hy - 1, 10, 4, color); P(3, hy - 1, 10, 1, hi);
-      P(3, hy + 2, 1, 3, color); P(12, hy + 2, 1, 3, color);
+    case 'pelo_largo': P(color, 2, hy - 1, 12, 5); P(hi, 2, hy - 1, 12, 1); P(color, 2, hy + 3, 2, 9); P(color, 12, hy + 3, 2, 9); break;
+    case 'pelo_coleta': P(color, 2, hy - 1, 12, 5); P(hi, 2, hy - 1, 12, 1); P(color, 2, hy + 3, 1, 5); P(color, 13, hy + 3, 1, 5); P(color, 14, hy + 2, 2, 7); break;
+    case 'pelo_chongo': P(color, 2, hy - 1, 12, 5); P(hi, 2, hy - 1, 12, 1); P(color, 7, hy - 4, 4, 4); P(hi, 7, hy - 4, 4, 1); break;
+    case 'pelo_afro': P(color, 1, hy - 3, 14, 7); P(hi, 1, hy - 3, 14, 2); P(color, 1, hy + 3, 2, 5); P(color, 13, hy + 3, 2, 5); break;
+    case 'pelo_mohawk': if (dir === 'left' || dir === 'right') { P(color, 4, hy - 3, 8, 3); P(hi, 4, hy - 3, 8, 1); } else { P(color, 7, hy - 4, 2, 5); P(hi, 7, hy - 4, 2, 2); } break;
+    case 'pelo_fleco': P(color, 2, hy - 1, 12, 5); P(hi, 2, hy - 1, 12, 1); P(sh, 3, hy + 4, 10, 1); break;
+    case 'pelo_punk': P(color, 5, hy - 2, 6, 5); P(color, 4, hy - 5, 1, 4); P(color, 8, hy - 6, 1, 5); P(color, 11, hy - 5, 1, 4); break;
+    default: P(color, 2, hy - 1, 12, 5); P(hi, 2, hy - 1, 12, 1); P(color, 2, hy + 3, 1, 4); P(color, 13, hy + 3, 1, 4);
   }
 }
 
-function drawGlasses(P, glasses, dir, eyeY) {
-  if (!glasses || glasses === 'lentes_none') return;
-  const lens = glasses === 'lentes_sol' ? '#1b2236' : 'rgba(120,200,255,0.45)';
-  const rim = glasses === 'lentes_sol' ? '#0b0f1a' : '#2a3147';
-  if (dir === 'up') return;
-  if (dir === 'left') { P(4.6, eyeY - 0.5, 3, 3, rim); P(5, eyeY, 2.2, 2, lens); return; }
-  if (dir === 'right') { P(8.6, eyeY - 0.5, 3, 3, rim); P(9, eyeY, 2.2, 2, lens); return; }
-  // frente: dos lentes + puente
-  P(4.4, eyeY - 0.5, 3, 3, rim); P(8.6, eyeY - 0.5, 3, 3, rim);
-  P(4.8, eyeY, 2.2, 2, lens); P(9, eyeY, 2.2, 2, lens);
-  P(7.4, eyeY + 0.5, 1.2, 1, rim);
-  if (glasses === 'lentes_redondos') { /* mismas cajas, leídas como redondas a baja resolución */ }
+function drawGlasses(P, g, dir, ey) {
+  if (!g || g === 'lentes_none') return;
+  const lens = g === 'lentes_sol' ? '#1b2236' : 'rgba(120,200,255,0.45)', rim = g === 'lentes_sol' ? '#0b0f1a' : '#2a3147';
+  if (dir === 'left') { P(rim, 4, ey - 1, 3, 1); P(rim, 4, ey, 1, 3); P(rim, 6, ey, 1, 3); P(lens, 5, ey, 1, 2); return; }
+  if (dir === 'right') { P(rim, 9, ey - 1, 3, 1); P(rim, 9, ey, 1, 3); P(rim, 11, ey, 1, 3); P(lens, 10, ey, 1, 2); return; }
+  P(rim, 4, ey - 1, 8, 1);
+  P(rim, 4, ey, 1, 3); P(rim, 7, ey, 1, 3); P(rim, 8, ey, 1, 3); P(rim, 11, ey, 1, 3);
+  P(lens, 5, ey, 2, 2); P(lens, 9, ey, 2, 2);
 }
 
-function drawHat(P, type, color, dir, hy, shade) {
+function drawHat(P, type, color, dir, hy) {
   const hi = shade(color, 0.2), sh = shade(color, -0.3);
-  if (type === 'hat_cap') {
-    P(3, hy - 1, 10, 3, color); P(3, hy - 1, 10, 1, hi);
-    if (dir === 'down') P(4, hy + 2, 8, 1, sh);                 // visera al frente
-    if (dir === 'left') P(1, hy + 1, 3, 2, sh);
-    if (dir === 'right') P(12, hy + 1, 3, 2, sh);
-    return;
-  }
-  if (type === 'hat_beanie') { P(3, hy - 2, 10, 4, color); P(3, hy - 2, 10, 1, hi); P(3, hy + 1, 10, 1, sh); return; }
-  if (type === 'hat_safety') { P(3, hy - 2, 10, 4, color); P(2, hy + 1, 12, 1, color); P(7, hy - 2, 2, 4, sh); return; }
-  if (type === 'hat_grad') { P(2, hy - 1, 12, 2, color); P(5, hy - 3, 6, 2, color); P(9, hy - 2, 3, 1, '#FACC15'); return; }
-  if (type === 'hat_crown') { P(4, hy - 3, 8, 4, color); P(4, hy - 5, 1, 3, color); P(7, hy - 6, 1, 4, color); P(10, hy - 5, 1, 3, color); return; }
-  // genérico
-  P(3, hy - 1, 10, 3, color); P(3, hy - 1, 10, 1, hi);
+  if (type === 'hat_cap') { P(color, 2, hy - 1, 12, 3); P(hi, 2, hy - 1, 12, 1); if (dir === 'down') P(sh, 3, hy + 2, 10, 1); return; }
+  if (type === 'hat_beanie') { P(color, 2, hy - 2, 12, 4); P(hi, 2, hy - 2, 12, 1); P(sh, 2, hy + 1, 12, 1); return; }
+  if (type === 'hat_safety') { P(color, 2, hy - 2, 12, 4); P(color, 1, hy + 1, 14, 1); P(sh, 7, hy - 2, 2, 4); return; }
+  if (type === 'hat_grad') { P(color, 1, hy - 1, 14, 2); P(color, 5, hy - 3, 6, 2); P('#FACC15', 10, hy - 2, 2, 1); return; }
+  if (type === 'hat_crown') { P(color, 4, hy - 3, 8, 4); P(color, 4, hy - 5, 1, 3); P(color, 7, hy - 6, 1, 4); P(color, 11, hy - 5, 1, 3); return; }
+  P(color, 2, hy - 1, 12, 3); P(hi, 2, hy - 1, 12, 1);
 }
 
 // ---------------------------------------------------------------------
 // Mapea un `equipado` (estado guardado) a las opciones del sprite.
-// Si hay un outfit premium equipado (≠ bata), su color manda sobre la
-// camisa personalizada y muestra un acento.
 // ---------------------------------------------------------------------
 export function spriteFromEquipado(equipado = {}, itemById) {
   const outfit = itemById ? itemById(equipado.outfit) : null;
@@ -211,9 +151,8 @@ export function spriteFromEquipado(equipado = {}, itemById) {
     skin: equipado.piel || '#F2C9A0',
     hairStyle: equipado.pelo || 'pelo_corto',
     hairColor: equipado.pelo_color || '#3B2A20',
-    shirtColor: premium ? outfit.color : (equipado.camisa_color || '#2563EB'),
-    shirtAccent: premium ? outfit.acento : null,
-    pantsColor: equipado.pantalon_color || '#3A4256',
+    shirtColor: premium ? outfit.color : (equipado.camisa_color || '#ffffff'),
+    pantsColor: equipado.pantalon_color || '#f1f3f6',
     glasses: equipado.lentes || 'lentes_none',
     hatType: hat && hat.color !== 'transparent' ? hat.id : 'hat_none',
     hatColor: hat ? hat.color : null,
@@ -223,7 +162,7 @@ export function spriteFromEquipado(equipado = {}, itemById) {
 // Apariencia determinista por semilla (para personas sin fila de juego).
 export function seededSprite(key, pieles, peloColores, peinados) {
   const seed = String(key || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  const camisas = ['#64748B', '#2563EB', '#16A34A', '#B45309', '#7C3AED', '#0EA5E9', '#DC2626'];
+  const camisas = ['#ffffff', '#2563EB', '#16A34A', '#B45309', '#7C3AED', '#0EA5E9', '#DC2626'];
   return {
     skin: pieles[seed % pieles.length],
     hairStyle: peinados[(seed * 3) % peinados.length].id,

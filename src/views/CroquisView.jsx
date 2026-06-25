@@ -310,8 +310,8 @@ function MesaNode({ m, occupants, reservadas, proximas, editMode, selected, onCl
           </div>
         )}
         {isMesa && (m.duenos || []).length > 0 && (
-          <span style={{ position: 'absolute', top: -9, left: isL ? 'auto' : 6, right: isL ? 0 : 'auto', background: '#7C3AED', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 10, whiteSpace: 'nowrap' }}>
-            {nombreDe((m.duenos || [])[0])}
+          <span style={{ position: 'absolute', top: -9, left: isL ? 'auto' : 6, right: isL ? 0 : 'auto', background: '#7C3AED', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 10, whiteSpace: 'nowrap', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {(m.duenos || []).map((d) => nombreDe(d)).join(' · ')}
           </span>
         )}
         {/* tirador de redimensión */}

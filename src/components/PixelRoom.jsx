@@ -12,7 +12,7 @@ import { useRef, useEffect } from 'react';
 import { SEAT } from '../lib/lab-layout.js';
 import { drawAvatar } from '../lib/avatarSprite.js';
 import {
-  TILE, LAB_W, LAB_H, HALL, OXXO, WORLD_W, WORLD_H, OXXO_FIXTURES, SHOP,
+  TILE, LAB_W, LAB_H, HALL, OXXO, WORLD_W, WORLD_H, OXXO_FIXTURES, SHOP, LAB_FRIDGE,
   regionAt, nearShop,
 } from '../lib/world.js';
 
@@ -44,39 +44,66 @@ export default function PixelRoom({
       return '#'+x(r)+x(g)+x(b);
     };
 
-    // ---- chair (silla de oficina azul) ----
+    // ---- silla de oficina ROJA (vista superior, idéntica al HTML) ----
     function drawChair(cx, cy) {
-      const x = Math.round(cx - SEAT/2), y = Math.round(cy - SEAT/2);
-      ctx.fillStyle = '#1e3a6e'; ctx.fillRect(x+3, y-2, SEAT-6, 4);
-      ctx.fillStyle = '#2a5298'; ctx.fillRect(x+1, y+2, SEAT-2, SEAT-4);
-      ctx.fillStyle = '#1e3a6e'; ctx.fillRect(x+1, y+SEAT-4, SEAT-2, 3);
-      ctx.fillStyle = '#4a7adf'; ctx.fillRect(x+3, y+3, SEAT-6, 3);
+      const x = Math.round(cx), y = Math.round(cy);
+      ctx.fillStyle = 'rgba(15,23,42,0.18)'; ctx.beginPath(); ctx.ellipse(x, y + 8, 11, 4, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#1f1f24'; ctx.fillRect(x - 2, y + 4, 4, 8);          // poste
+      ctx.fillStyle = '#0f0f12'; ctx.fillRect(x - 9, y + 10, 18, 3);        // base estrella
+      ctx.fillStyle = '#7a1414'; ctx.fillRect(x - 9, y - 9, 18, 16);        // respaldo (contorno)
+      ctx.fillStyle = '#b51f1f'; ctx.fillRect(x - 8, y - 8, 16, 14);        // tapizado
+      ctx.fillStyle = '#d94a3a'; ctx.fillRect(x - 7, y - 7, 14, 3);         // brillo
+      ctx.fillStyle = '#7a1414'; ctx.fillRect(x - 9, y - 2, 2, 7); ctx.fillRect(x + 7, y - 2, 2, 7); // descansabrazos
     }
 
-    // ---- escritorio VACÍO (listo para decorar) ----
+    // ---- escritorio (madera con vetas, idéntico al HTML) ----
     function drawDesk(m) {
       const wood = (m.color && m.color !== '#ffffff') ? m.color : '#c89a5a';
       const wsh = shade(wood, -0.25), whi = shade(wood, 0.15);
       const dr = (rx, ry, rw, rh) => {
-        ctx.fillStyle = wsh; ctx.fillRect(rx, ry+rh-3, rw, 3);
-        ctx.fillStyle = wood; ctx.fillRect(rx, ry, rw, rh-3);
+        ctx.fillStyle = wsh; ctx.fillRect(rx, ry + rh - 3, rw, 3);
+        ctx.fillStyle = wood; ctx.fillRect(rx, ry, rw, rh - 3);
         ctx.fillStyle = whi; ctx.fillRect(rx, ry, rw, 2);
-        ctx.fillStyle='rgba(60,35,10,0.12)';
-        for (let gx=rx+5;gx<rx+rw-2;gx+=8) ctx.fillRect(gx,ry+3,1,rh-8);
-        ctx.strokeStyle='#5a3a18'; ctx.lineWidth=1.2;
-        ctx.strokeRect(rx+0.5,ry+0.5,rw-1,rh-1);
+        ctx.fillStyle = 'rgba(60,35,10,0.12)';
+        for (let gx = rx + 5; gx < rx + rw - 2; gx += 8) ctx.fillRect(gx, ry + 3, 1, rh - 8);
+        ctx.strokeStyle = '#5a3a18'; ctx.lineWidth = 1.2; ctx.strokeRect(rx + 0.5, ry + 0.5, rw - 1, rh - 1);
       };
       if (m.forma === 'L') {
-        const ah = Math.round(m.h*0.48);
+        const ah = Math.round(m.h * 0.48);
         dr(m.x, m.y, m.w, ah);
-        dr(m.x+Math.round(m.w*0.72), m.y, Math.round(m.w*0.28), m.h);
+        dr(m.x + Math.round(m.w * 0.72), m.y, Math.round(m.w * 0.28), m.h);
       } else {
         dr(m.x, m.y, m.w, m.h);
       }
-      // nombre tenue (etiqueta, no es un objeto sobre la mesa)
-      ctx.font = '7px "Silkscreen",monospace'; ctx.textAlign='center';
-      ctx.fillStyle='rgba(60,35,10,0.55)';
-      ctx.fillText(m.nombre, m.x+m.w/2, m.y+m.h/2+2); ctx.textAlign='left';
+      // monitor + teclado si la mesa tiene PC; si no, una bandeja chica
+      if (m.pc) {
+        const mx = m.x + m.w - 26, my = m.y + 3;
+        ctx.fillStyle = '#1a2236'; ctx.fillRect(mx, my, 22, 14);
+        ctx.fillStyle = '#2a4a8c'; ctx.fillRect(mx + 1, my + 1, 20, 11);
+        ctx.fillStyle = 'rgba(120,180,255,0.35)'; ctx.fillRect(mx + 1, my + 1, 20, 3);
+        ctx.fillStyle = '#3a4252'; ctx.fillRect(mx + 7, my + 14, 8, 3);
+        ctx.fillStyle = '#c8c0b0'; ctx.fillRect(mx - 14, my + 6, 12, 7);
+        ctx.fillStyle = '#b0a898'; ctx.fillRect(mx - 13, my + 7, 10, 2); ctx.fillRect(mx - 13, my + 10, 10, 2);
+      } else if (m.w > 60) {
+        ctx.fillStyle = '#8a7a6a'; ctx.fillRect(m.x + 6, m.y + 4, 8, 4);
+        ctx.fillStyle = '#6a5a4a'; ctx.fillRect(m.x + 7, m.y + 5, 6, 2);
+      }
+      // nombre tenue (etiqueta)
+      ctx.font = '7px "Silkscreen",monospace'; ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(60,35,10,0.65)';
+      ctx.fillText(m.nombre, m.x + m.w / 2, m.y + m.h / 2 + 2); ctx.textAlign = 'left';
+    }
+    // ---- refrigerador (idéntico al HTML) ----
+    function drawFridge(X, Y) {
+      const body = '#dfe4e9', bodySh = '#b9c1c9', out = '#7c848d', line = '#9aa2ab';
+      ctx.fillStyle = 'rgba(15,23,42,0.16)'; ctx.fillRect(X + 1, Y + 24, 18, 3);
+      ctx.fillStyle = body; ctx.fillRect(X + 1, Y, 18, 26);
+      ctx.fillStyle = bodySh; ctx.fillRect(X + 15, Y, 4, 26);
+      ctx.fillStyle = '#eef2f5'; ctx.fillRect(X + 1, Y, 18, 2);
+      ctx.fillStyle = line; ctx.fillRect(X + 1, Y + 10, 18, 1);
+      ctx.fillStyle = '#6f777f'; ctx.fillRect(X + 3, Y + 3, 2, 5); ctx.fillRect(X + 3, Y + 13, 2, 8);
+      ctx.fillStyle = '#bfe0d2'; ctx.fillRect(X + 12, Y + 14, 4, 4);
+      ctx.strokeStyle = out; ctx.lineWidth = 1.2; ctx.strokeRect(X + 1.5, Y + 0.5, 17, 25);
     }
 
     // ---- módulos especiales ----
@@ -271,6 +298,8 @@ export default function PixelRoom({
 
       // mobiliario interior del OXXO
       drawOxxoRoom();
+      // refrigerador del laboratorio
+      drawFridge(LAB_FRIDGE.x, LAB_FRIDGE.y);
 
       // ---- y-sort: muebles + sillas + sprites ----
       const draws = [];

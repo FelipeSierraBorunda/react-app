@@ -38,6 +38,11 @@ export function oxxoSolids() {
   return [f.coolers, f.gondola1, f.gondola2, f.checkout];
 }
 
+// Refrigerador del laboratorio (mueble fijo, estilo HTML). Va en una zona
+// libre del centro-izquierda del croquis.
+export const LAB_FRIDGE = { x: 120, y: 300, w: 20, h: 27 };
+export function labSolids() { return [LAB_FRIDGE]; }
+
 const inRect = (x, y, r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
 export function inLab(x, y) { return x >= 0 && x < LAB_W && y >= 0 && y < LAB_H; }
@@ -57,10 +62,10 @@ export function walkableBody(cx, cy, half = 9) {
       && walkablePoint(cx, cy - half + 6) && walkablePoint(cx, cy + half);
 }
 
-// Colisión con el mobiliario fijo del OXXO.
+// Colisión con el mobiliario fijo del OXXO o el refri del lab.
 export function hitsOxxo(cx, cy, half = 11) {
   const l = cx - half, r = cx + half, t = cy - half + 6, b = cy + half;
-  return oxxoSolids().some((o) => r > o.x && l < o.x + o.w && b > o.y && t < o.y + o.h);
+  return [...oxxoSolids(), ...labSolids()].some((o) => r > o.x && l < o.x + o.w && b > o.y && t < o.y + o.h);
 }
 
 // ¿Está el jugador junto a la caja del OXXO?

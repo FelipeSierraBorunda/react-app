@@ -466,7 +466,11 @@ export default function GameView({ go }) {
       const onSeats = m.seats.filter((s) => s.on);
       if (!onSeats.length) return;
 
-      const owners = (m.duenos || []).map((nombre) => ({ nombre, email: resolveEmail(nombre) }));
+      const owners = (m.duenos || []).map((nombre) => {
+        const email = resolveEmail(nombre);
+        const disp = email ? nombreDe(email) : nombre;   // mostrar NOMBRE, no correo
+        return { nombre: disp, email };
+      });
       const ownerEmails = new Set(owners.map((o) => o.email).filter(Boolean));
       const visitors = (presentesPorMesa[m.id] || [])
         .filter((p) => !(session && p.email === session.email))
