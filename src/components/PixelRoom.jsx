@@ -338,7 +338,10 @@ export default function PixelRoom({
             drawAvatar(ctx, seat.x, seat.y+2, {
               ...(seat.info.sprite||{}), dir:'up', sitting:true, sleeping:!seat.info.presente
             }, 1);
-            labels.push({ cx:seat.x, fy:seat.y+2, name:seat.info.nombre, you:false, present:seat.info.presente, dot:true });
+            // Nombre solo si el jugador está cerca (< 45 px) — evita amontonamiento
+            if (Math.hypot(seat.x - p.x, seat.y - p.y) < 45) {
+              labels.push({ cx:seat.x, fy:seat.y+2, name:seat.info.nombre, you:false, present:seat.info.presente, dot:true });
+            }
           }
         }});
       });

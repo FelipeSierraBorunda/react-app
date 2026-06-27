@@ -86,3 +86,26 @@ export const db = {
     return true;
   },
 };
+
+// ── Sala del juego ─────────────────────────────────────────────────────────
+// Una sola fila (id='lab') con la distribución del juego (posición de mesas,
+// sillas, refri, color, textura) para que todos vean los mismos cambios del
+// editor admin sin necesidad de recargar la página.
+export async function saveSala(config) {
+  try {
+    await db.upsert('sala', [{ id: 'lab', config, actualizado: new Date().toISOString() }]);
+  } catch (e) {
+    console.error('[supabase] saveSala:', e);
+  }
+}
+
+export async function loadSala() {
+  try {
+    const rows = await db.select('sala');
+    const r = (rows || []).find((x) => x.id === 'lab');
+    return r ? r.config : null;
+  } catch (e) {
+    console.error('[supabase] loadSala:', e);
+    return null;
+  }
+}

@@ -34,6 +34,7 @@ import { Avatar, Pet, sleeperLook, lookFromEquipado } from '../components/Avatar
 import PixelRoom from '../components/PixelRoom.jsx';
 import AvatarPixel from '../components/AvatarPixel.jsx';
 import { spriteFromEquipado, seededSprite } from '../lib/avatarSprite.js';
+import { saveSala, loadSala } from '../lib/supabase.js';
 
 const STEP = 4, AV = 14;
 // Mismo recorte que el croquis (hueco abajo-izquierda).
@@ -92,19 +93,35 @@ export default function GameView({ go }) {
   const [layout, setLayout] = useState(() => {
     try { return JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}'); } catch (_) { return {}; }
   });
+  const layoutRef = useRef({});
   const saveLayout = useCallback((next) => {
-    setLayout(next);
-    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(next)); } catch (_) {}
+    // Resuelve usando layoutRef (siempre la versión más reciente) y actualiza
+    // el ref síncronamente para que persistCurrent pueda leerlo de inmediato.
+    const resolved = typeof next === 'function' ? next(layoutRef.current) : next;
+    layoutRef.current = resolved;
+    setLayout(resolved);
+  }, []);
+  // Guarda el layout actual en localStorage Y Supabase (compartido para todos).
+  const persistCurrent = useCallback(() => {
+    const cur = layoutRef.current;
+    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(cur)); } catch (_) {}
+    saveSala(cur).catch(() => {});
   }, []);
   // refrigerador movible (parte del layout del juego)
   const fridge = useMemo(() => ({ ...FRIDGE_DEFAULT, ...(layout.__fridge || {}) }), [layout]);
 
-  // Mesas del JUEGO: croquis (Supabase) ESCALADO a 19×15 + overrides locales del juego.
-  // El croquis original no se modifica con esto.
+  // Mesas del JUEGO: croquis (Supabase) ESCALADO a 19×15 + overrides compartidos del juego.
+  // seatOffsets guarda posición individual de sillas (dx/dy en espacio de juego).
   const gameMesas = useMemo(() => (mesas || []).map((m) => {
     const g = scaleMesa(m);
     const ov = layout[m.id];
-    return ov ? { ...g, ...ov } : g;
+    if (!ov) return g;
+    const { seatOffsets, ...rest } = ov;
+    let result = { ...g, ...rest };
+    if (seatOffsets && Array.isArray(result.seats)) {
+      result = { ...result, seats: result.seats.map((s, i) => seatOffsets[i] ? { ...s, ...seatOffsets[i] } : s) };
+    }
+    return result;
   }), [mesas, layout]);
 
   const selMesa = useMemo(
@@ -126,6 +143,13 @@ export default function GameView({ go }) {
   useEffect(() => {
     if (!session) { setLoaded(true); return; }
     (async () => {
+      // Cargar layout compartido (sala) antes que todo lo demás
+      const sala = await loadSala();
+      if (sala && Object.keys(sala).length) {
+        setLayout(sala);
+        layoutRef.current = sala;
+        try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(sala)); } catch (_) {}
+      }
       const { mine, rows } = await fetchJuego(session.email);
       setJuegoRows(rows || []);
       if (mine) {
@@ -152,6 +176,36 @@ export default function GameView({ go }) {
       try {
         const { rows } = await fetchJuego(session.email);
         if (rows) setJuegoRows(rows);
+      } catch (_) {}
+    }, 30000);
+    return () => clearInterval(iv);
+  }, [session]);
+
+  // ---------- sync del layout compartido (sala) cada 12 s ----------
+  // Si otro admin mueve una mesa o silla, los demás la ven actualizada.
+  useEffect(() => {
+    const iv = setInterval(async () => {
+      if (editRef.current) return; // no interrumpir un arrastre activo
+      try {
+        const config = await loadSala();
+        if (config && Object.keys(config).length) {
+          setLayout(config);
+          layoutRef.current = config;
+        }
+      } catch (_) {}
+    }, 12000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // ---------- refresh del quiz cada 30 s ----------
+  // Las preguntas creadas por otros aparecen sin recargar la página.
+  useEffect(() => {
+    if (!session) return;
+    const iv = setInterval(async () => {
+      try {
+        const q = await fetchQuiz();
+        setQuizPreguntas(q.preguntas);
+        setQuizRespuestas(q.respuestas);
       } catch (_) {}
     }, 30000);
     return () => clearInterval(iv);
@@ -287,15 +341,37 @@ export default function GameView({ go }) {
 
   const onEditPointerDown = useCallback((e) => {
     const w = pointerToWorld(e); if (!w) return;
+
+    // 1. Silla individual (prioridad — target más pequeño que la mesa)
+    let seatHit = null;
+    outer: for (const m of gameMesas) {
+      if (!m.seats) continue;
+      for (let i = 0; i < m.seats.length; i++) {
+        const s = m.seats[i]; if (!s.on) continue;
+        const sx = m.x + s.dx, sy = m.y + s.dy;
+        if (w.x >= sx && w.x <= sx + SEAT && w.y >= sy && w.y <= sy + SEAT) {
+          seatHit = { mesaId: m.id, idx: i, ox: w.x - sx, oy: w.y - sy };
+          break outer;
+        }
+      }
+    }
+    if (seatHit) {
+      setSelMesaId(seatHit.mesaId);
+      editRef.current = { type: 'seat', id: seatHit.mesaId, idx: seatHit.idx, ox: seatHit.ox, oy: seatHit.oy };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+      return;
+    }
+
+    // 2. Mesa completa o refrigerador
     const hit = gameMesas.find((m) => w.x >= m.x && w.x <= m.x + m.w && w.y >= m.y && w.y <= m.y + m.h);
     const onFridge = w.x >= fridge.x && w.x <= fridge.x + fridge.w && w.y >= fridge.y && w.y <= fridge.y + fridge.h;
     if (hit) {
       setSelMesaId(hit.id);
-      editRef.current = { id: hit.id, ox: w.x - hit.x, oy: w.y - hit.y, w: hit.w, h: hit.h };
+      editRef.current = { type: 'mesa', id: hit.id, ox: w.x - hit.x, oy: w.y - hit.y, w: hit.w, h: hit.h };
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
     } else if (onFridge) {
       setSelMesaId('__fridge');
-      editRef.current = { id: '__fridge', ox: w.x - fridge.x, oy: w.y - fridge.y, w: fridge.w, h: fridge.h };
+      editRef.current = { type: 'mesa', id: '__fridge', ox: w.x - fridge.x, oy: w.y - fridge.y, w: fridge.w, h: fridge.h };
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
     } else {
       setSelMesaId(null);
@@ -305,17 +381,34 @@ export default function GameView({ go }) {
   const onEditPointerMove = useCallback((e) => {
     const d = editRef.current; if (!d) return;
     const w = pointerToWorld(e); if (!w) return;
+    if (d.type === 'seat') {
+      // Mover silla individual: dx/dy clampeados dentro de la mesa
+      const m = gameMesas.find(x => x.id === d.id); if (!m) return;
+      const newDx = clamp(Math.round(w.x - d.ox - m.x), 0, m.w - SEAT);
+      const newDy = clamp(Math.round(w.y - d.oy - m.y), 0, m.h - SEAT);
+      saveLayout(prev => {
+        const ov = prev[d.id] || {};
+        const so = { ...(ov.seatOffsets || {}), [d.idx]: { dx: newDx, dy: newDy } };
+        return { ...prev, [d.id]: { ...ov, seatOffsets: so } };
+      });
+      return;
+    }
+    // Mesa completa o refrigerador
     const nx = clamp(Math.round(w.x - d.ox), 0, WORLD_W - d.w);
     const ny = clamp(Math.round(w.y - d.oy), 0, WORLD_H - d.h);
     setOverride(d.id, { x: nx, y: ny });
-  }, [pointerToWorld, setOverride]);
+  }, [gameMesas, pointerToWorld, setOverride, saveLayout]);
 
-  const onEditPointerUp = useCallback(() => { editRef.current = null; }, []);
+  const onEditPointerUp = useCallback(() => {
+    editRef.current = null;
+    persistCurrent(); // guarda en localStorage + Supabase al soltar
+  }, [persistCurrent]);
 
   const editMesa = useCallback((patch) => {
     if (!selMesaId) return;
     setOverride(selMesaId, patch);
-  }, [selMesaId, setOverride]);
+    persistCurrent(); // cambios de panel (color, textura, tamaño) persisten de inmediato
+  }, [selMesaId, setOverride, persistCurrent]);
 
   const [pos, setPos] = useState(SPAWN_FALLBACK);
   const [dir, setDir] = useState('up');

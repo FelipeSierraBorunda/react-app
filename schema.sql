@@ -155,3 +155,49 @@ CREATE TABLE IF NOT EXISTS sala (
 ALTER TABLE sala ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "public_all" ON sala;
 CREATE POLICY "public_all" ON sala FOR ALL USING (true) WITH CHECK (true);
+
+-- ========== PROGRESO DEL JUEGO (monedas, ropa, insignias) ==========
+CREATE TABLE IF NOT EXISTS juego (
+  email          TEXT PRIMARY KEY,
+  monedas        INTEGER NOT NULL DEFAULT 0,
+  gastado        INTEGER NOT NULL DEFAULT 0,
+  comprados      JSONB   NOT NULL DEFAULT '[]'::jsonb,
+  deco           JSONB   NOT NULL DEFAULT '[]'::jsonb,
+  equipado       JSONB   NOT NULL DEFAULT '{}'::jsonb,
+  ult_recompensa TIMESTAMPTZ,
+  premio_sem     TEXT,
+  actualizado    TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE juego ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "public_all" ON juego;
+CREATE POLICY "public_all" ON juego FOR ALL USING (true) WITH CHECK (true);
+
+-- ========== QUIZ COLABORATIVO ==========
+-- Preguntas creadas por usuarios (3 opciones, viven 24 h).
+CREATE TABLE IF NOT EXISTS quiz_preguntas (
+  id           TEXT PRIMARY KEY,
+  autor_email  TEXT,
+  autor_nombre TEXT,
+  texto        TEXT NOT NULL,
+  opciones     JSONB NOT NULL DEFAULT '[]'::jsonb,
+  correcta     INTEGER NOT NULL DEFAULT 0,
+  premio       INTEGER NOT NULL DEFAULT 15,
+  creado       TIMESTAMPTZ DEFAULT NOW(),
+  expira       TIMESTAMPTZ
+);
+-- Una respuesta por usuario por pregunta.
+CREATE TABLE IF NOT EXISTS quiz_respuestas (
+  id       TEXT PRIMARY KEY,
+  pregunta TEXT    NOT NULL,
+  email    TEXT    NOT NULL,
+  nombre   TEXT,
+  opcion   INTEGER NOT NULL,
+  correcta BOOLEAN NOT NULL DEFAULT false,
+  ts       TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE quiz_preguntas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quiz_respuestas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "public_all" ON quiz_preguntas;
+DROP POLICY IF EXISTS "public_all" ON quiz_respuestas;
+CREATE POLICY "public_all" ON quiz_preguntas FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public_all" ON quiz_respuestas FOR ALL USING (true) WITH CHECK (true);
