@@ -157,7 +157,22 @@ export async function fetchJuego(email) {
 
 export async function saveJuego(email, patch) {
   const row = { email, actualizado: new Date().toISOString(), ...patch };
-  try { await db.upsert('juego', [row]); } catch (e) { console.error('[game] saveJuego:', e); }
+  try {
+    await db.upsert('juego', [row]);
+  } catch (e) {
+    console.error('[game] saveJuego (fila completa):', e);
+    // Reintento defensivo: si la base aún no tiene las columnas nuevas
+    // (gastado, deco, deco_pos, premio_sem…), el upsert COMPLETO falla y NO
+    // se guarda NADA — por eso al recargar reaparecían todas las monedas y
+    // nada comprado. Reintentamos con sólo lo esencial para no perder el
+    // progreso de compras y monedas.
+    const core = { email, actualizado: row.actualizado };
+    ['monedas', 'comprados', 'equipado', 'ult_recompensa'].forEach((k) => {
+      if (row[k] !== undefined) core[k] = row[k];
+    });
+    try { await db.upsert('juego', [core]); }
+    catch (e2) { console.error('[game] saveJuego (núcleo):', e2); }
+  }
   return row;
 }
 

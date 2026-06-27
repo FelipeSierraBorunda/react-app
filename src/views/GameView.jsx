@@ -92,6 +92,7 @@ export default function GameView({ go }) {
   // --- editor del JUEGO (solo admin). Persiste en localStorage; NO toca el croquis. ---
   const [editMode, setEditMode] = useState(false);
   const [selMesaId, setSelMesaId] = useState(null);
+  const [selSeat, setSelSeat] = useState(null);   // { mesaId, idx } silla seleccionada para orientar
   const [layout, setLayout] = useState(() => {
     try { return JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}'); } catch (_) { return {}; }
   });
@@ -381,6 +382,7 @@ export default function GameView({ go }) {
     if (seatHit) {
       pushHistory();
       setSelMesaId(seatHit.mesaId);
+      setSelSeat({ mesaId: seatHit.mesaId, idx: seatHit.idx });
       editRef.current = { type: 'seat', id: seatHit.mesaId, idx: seatHit.idx, ox: seatHit.ox, oy: seatHit.oy };
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
       return;
@@ -392,15 +394,18 @@ export default function GameView({ go }) {
     if (hit) {
       pushHistory();
       setSelMesaId(hit.id);
+      setSelSeat(null);
       editRef.current = { type: 'mesa', id: hit.id, ox: w.x - hit.x, oy: w.y - hit.y, w: hit.w, h: hit.h };
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
     } else if (onFridge) {
       pushHistory();
       setSelMesaId('__fridge');
+      setSelSeat(null);
       editRef.current = { type: 'mesa', id: '__fridge', ox: w.x - fridge.x, oy: w.y - fridge.y, w: fridge.w, h: fridge.h };
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
     } else {
       setSelMesaId(null);
+      setSelSeat(null);
     }
   }, [gameMesas, fridge, pointerToWorld, pushHistory]);
 
@@ -437,6 +442,22 @@ export default function GameView({ go }) {
     setOverride(selMesaId, patch);
     persistCurrent(); // cambios de panel (color, textura, tamaño) persisten de inmediato
   }, [selMesaId, setOverride, persistCurrent, pushHistory]);
+
+  // Orientación del muñeco sentado en una silla (dir: up=espaldas, down=de frente…)
+  const editSeatDir = useCallback((dir) => {
+    if (!selSeat) return;
+    pushHistory();
+    saveLayout((prev) => {
+      const ov = prev[selSeat.mesaId] || {};
+      const so = { ...(ov.seatOffsets || {}) };
+      so[selSeat.idx] = { ...(so[selSeat.idx] || {}), dir };
+      return { ...prev, [selSeat.mesaId]: { ...ov, seatOffsets: so } };
+    });
+    persistCurrent();
+  }, [selSeat, saveLayout, persistCurrent, pushHistory]);
+  const selSeatDir = selSeat
+    ? ((layout[selSeat.mesaId] && layout[selSeat.mesaId].seatOffsets && layout[selSeat.mesaId].seatOffsets[selSeat.idx] && layout[selSeat.mesaId].seatOffsets[selSeat.idx].dir) || 'up')
+    : null;
 
   const [pos, setPos] = useState(SPAWN_FALLBACK);
   const [dir, setDir] = useState('up');
@@ -683,8 +704,18 @@ export default function GameView({ go }) {
       });
       if (items.length) out[m.id] = items;
     });
+    // Garantiza que TU propia deco aparezca SIEMPRE en TU mesa, aunque los
+    // dueños guardados no resuelvan por nombre/correo.
+    if (miMesa && Array.isArray(deco) && deco.length) {
+      const existing = new Set((out[miMesa.id] || []).map((d) => d.id));
+      const mine = deco
+        .map(itemById)
+        .filter((it) => it && it.emoji && !existing.has(it.id))
+        .map((it) => { const p = decoPos[it.id]; return { id: it.id, emoji: it.emoji, dx: p ? p.dx : null, dy: p ? p.dy : null }; });
+      if (mine.length) out[miMesa.id] = [...(out[miMesa.id] || []), ...mine];
+    }
     return out;
-  }, [gameMesas, rowByEmail, resolveEmail]);
+  }, [gameMesas, rowByEmail, resolveEmail, miMesa, deco, decoPos]);
 
   const seatPeople = useMemo(() => {
     const out = [];
@@ -723,7 +754,7 @@ export default function GameView({ go }) {
           const sprite = (person.email && lookByEmail[person.email]) || seededSprite(person.email || person.nombre, PIELES, PELO_COLORES, PELOS);
           info = { nombre: person.nombre, sprite, presente };
         }
-        out.push({ key: m.id + '-' + i, x: m.x + s.dx + SEAT / 2, y: m.y + s.dy + SEAT / 2, info });
+        out.push({ key: m.id + '-' + i, x: m.x + s.dx + SEAT / 2, y: m.y + s.dy + SEAT / 2, dir: s.dir || 'up', info });
       });
     });
     return out;
@@ -784,7 +815,6 @@ export default function GameView({ go }) {
             📚 Quiz{sinResponder > 0 && <span style={{ marginLeft: 4, background: '#DC2626', color: '#fff', borderRadius: 20, padding: '1px 7px', fontSize: 11 }}>{sinResponder}</span>}
           </button>
           <button onClick={() => setCustOpen(true)} style={btnHud('#fff', T.ink, T.border)}>🎨 {t('game.customize')}</button>
-          <button onClick={() => setShopOpen(true)} style={btnHud('#DA291C', '#fff', '#DA291C')}>🏪 OXXO</button>
           {miMesa && (
             <button onClick={() => { setDeskEditMode((v) => !v); setEditMode(false); }} title="Acomoda los objetos de tu escritorio" style={btnHud(deskEditMode ? '#34D399' : '#fff', deskEditMode ? '#053a28' : T.ink, deskEditMode ? '#059669' : T.border)}>🪴 {deskEditMode ? 'Listo' : 'Decorar mesa'}</button>
           )}
@@ -805,8 +835,41 @@ export default function GameView({ go }) {
         </div>
       )}
 
-      {/* CUARTO — render pixel-art (GBA) del croquis real */}
-      <div style={{ position: 'relative', maxWidth: 880, margin: '0 auto' }}>
+      {/* ===== 3 PANELES apilados en horizontal: ranking · juego · info ===== */}
+      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', justifyContent: 'center' }}>
+
+        {/* PANEL 1 — Ranking por horas de la semana */}
+        <aside style={panelCol}>
+          <div style={cardBox}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 18 }}>🏆</span>
+              <strong style={{ fontSize: 13, color: T.ink }}>Ranking · horas</strong>
+            </div>
+            {ranking.length === 0 ? (
+              <p style={{ fontSize: 12.5, color: T.muted, margin: 0 }}>Aún no hay horas registradas esta semana.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {ranking.slice(0, 10).map((r, i) => {
+                  const nom = nombreDe ? nombreDe(r.email) : r.nombre;
+                  const yo = session && r.email === session.email;
+                  const medal = ['🥇', '🥈', '🥉'][i] || null;
+                  return (
+                    <div key={r.email || i} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 9px', borderRadius: 9, background: yo ? '#FFF7ED' : '#F8FAFC', border: `1px solid ${yo ? '#FED7AA' : T.border}` }}>
+                      <span style={{ width: 20, flexShrink: 0, textAlign: 'center', fontSize: medal ? 15 : 12, fontWeight: 800, color: T.muted }}>{medal || (i + 1)}</span>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: yo ? '#7C2D12' : T.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}{yo && <span style={{ fontSize: 10.5, color: '#B45309' }}> (tú)</span>}</span>
+                      <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 800, color: '#16A34A' }}>{(r.min / 60).toFixed(1)}h</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* PANEL 2 — El juego */}
+        <div style={{ flex: '1 1 auto', minWidth: 0, maxWidth: 880 }}>
+        {/* CUARTO — render pixel-art (GBA) del croquis real */}
+        <div style={{ position: 'relative', maxWidth: 880, margin: '0 auto' }}>
         <PixelRoom
           mesas={gameMesas}
           fridge={fridge}
@@ -848,7 +911,7 @@ export default function GameView({ go }) {
       </div>
 
       {editMode && (
-        <EditPanel mesa={selMesa} onChange={editMesa} onDeselect={() => setSelMesaId(null)} />
+        <EditPanel mesa={selMesa} seatSel={selSeat} seatDir={selSeatDir} onSeatDir={editSeatDir} onChange={editMesa} onDeselect={() => { setSelMesaId(null); setSelSeat(null); }} />
       )}
 
       {deskEditMode && (
@@ -865,9 +928,14 @@ export default function GameView({ go }) {
       <p style={{ textAlign: 'center', fontSize: 12.5, color: T.muted, marginTop: 12 }}>
         ⌨️ {t('game.move')} · {t('game.enterHint')} · 🪑 F {t('game.sit')} · {nearShopUI ? <strong style={{ color: '#DA291C' }}>🏪 E — Comprar en el OXXO</strong> : <>🏪 {t('game.shopHint')}</>}
       </p>
+        </div>{/* /PANEL 2 — juego */}
 
+        {/* PANEL 3 — Info: zonas + en línea */}
+        <aside style={panelCol}>
       {/* leyenda de zonas */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 8 }}>
+      <div style={cardBox}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Zonas del lab</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
         {[
           ['📦', t('menu.inventory')], ['🗄️', 'Almacén'], ['🌾', 'Granja FPGA'], ['🦾', 'Brazo'], ['🏪', 'OXXO'],
         ].map(([icon, lbl]) => (
@@ -880,9 +948,10 @@ export default function GameView({ go }) {
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#94A3B8', marginLeft: 6 }} /> {t('game.away')}
         </span>
       </div>
+      </div>{/* /Zonas card */}
 
       {/* Jugadores en línea (registrados como presentes en el lab) */}
-      <div style={{ maxWidth: 880, margin: '14px auto 0', background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: '12px 16px' }}>
+      <div style={{ ...cardBox, marginTop: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#22C55E', boxShadow: '0 0 0 3px rgba(34,197,94,0.18)' }} />
           <strong style={{ fontSize: 13, color: T.ink }}>En línea ahora</strong>
@@ -906,6 +975,8 @@ export default function GameView({ go }) {
           </div>
         )}
       </div>
+        </aside>{/* /PANEL 3 — info */}
+      </div>{/* /3 paneles */}
 
       {shopOpen && <OxxoShop t={t} monedas={monedas} comprados={comprados} deco={deco} equipado={equipado} insignia={insignia} gastado={gastado} onBuy={comprar} onClose={() => setShopOpen(false)} />}
       {custOpen && <Customizer t={t} equipado={equipado} onLook={setLook} onClose={() => setCustOpen(false)} />}
@@ -1192,12 +1263,12 @@ function CreateForm({ t, yaPregunto, onCrear }) {
 }
 
 /* ---------- editor de mesas (admin) ---------- */
-function EditPanel({ mesa, onChange, onDeselect }) {
+function EditPanel({ mesa, seatSel, seatDir, onSeatDir, onChange, onDeselect }) {
   if (!mesa) {
     return (
       <div style={editWrap}>
         <span style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>✎ Modo editar (admin)</span>
-        <span style={{ fontSize: 12.5, color: '#78350F' }}>Haz clic en una mesa (o el refri) para seleccionarla y arrástrala para moverla. Estos cambios son del JUEGO y no modifican el croquis.</span>
+        <span style={{ fontSize: 12.5, color: '#78350F' }}>Haz clic en una mesa (o el refri) para moverla, o en una silla para moverla y elegir hacia dónde mira el muñeco. Estos cambios son del JUEGO y no modifican el croquis.</span>
       </div>
     );
   }
@@ -1211,6 +1282,14 @@ function EditPanel({ mesa, onChange, onDeselect }) {
         <span style={{ fontSize: 11.5, color: '#78350F' }}>{esMesa ? `forma ${mesa.forma || 'rect'}` : mesa.kind}</span>
         <button onClick={onDeselect} style={{ marginLeft: 'auto', ...miniBtn }}>✕ deseleccionar</button>
       </div>
+      {seatSel && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', background: '#fff', border: '1px solid #FDE68A', borderRadius: 10, padding: '8px 10px' }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: '#3a2d00' }}>🪑 Hacia dónde mira el muñeco</span>
+          {[['down', 'De frente', '⬇'], ['up', 'De espaldas', '⬆'], ['left', 'Izquierda', '⬅'], ['right', 'Derecha', '➡']].map(([d, lbl, ar]) => (
+            <button key={d} onClick={() => onSeatDir(d)} style={{ ...miniBtn, background: seatDir === d ? '#CA8A04' : '#fff', color: seatDir === d ? '#fff' : '#3a2d00' }}>{ar} {lbl}</button>
+          ))}
+        </div>
+      )}
       {esRefri && <span style={{ fontSize: 12, color: '#78350F' }}>Arrástralo para moverlo por el laboratorio.</span>}
       {!esRefri && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -1259,6 +1338,8 @@ function EditPanel({ mesa, onChange, onDeselect }) {
   );
 }
 const editWrap = { maxWidth: 880, margin: '12px auto 0', display: 'flex', flexDirection: 'column', gap: 10, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 16px' };
+const panelCol = { width: 250, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12 };
+const cardBox = { background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: '14px 14px' };
 const editLbl = { display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#78350F' };
 const stepGroup = { display: 'inline-flex', alignItems: 'center', gap: 4 };
 const miniBtn = { padding: '4px 9px', borderRadius: 7, border: '1px solid #E5D5A8', background: '#fff', color: '#3a2d00', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit' };

@@ -352,7 +352,7 @@ export default function PixelRoom({
           drawChair(seat.x, seat.y);
           if(seat.info) {
             drawAvatar(ctx, seat.x, seat.y+2, {
-              ...(seat.info.sprite||{}), dir:'up', sitting:true, sleeping:!seat.info.presente
+              ...(seat.info.sprite||{}), dir: seat.dir || 'up', sitting:true, sleeping:!seat.info.presente
             }, 1);
             // Nombre solo si el jugador está cerca (< 45 px) — evita amontonamiento
             if (Math.hypot(seat.x - p.x, seat.y - p.y) < 45) {
