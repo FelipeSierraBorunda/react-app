@@ -20,12 +20,12 @@ const VIEW_W = 420, VIEW_H = 264;
 
 export default function PixelRoom({
   mesas, seatPeople, pos, dir, moving, sitting, phase,
-  playerSprite, decoItems, miMesa, nearModule, playerName, zoom = 2, editSelId = null,
-  fridge = null, pet = null, aura = null,
+  playerSprite, decoByMesa, miMesa, nearModule, playerName, zoom = 2, editSelId = null,
+  deskEditId = null, fridge = null, pet = null, aura = null,
 }) {
   const canvasRef = useRef(null);
   const stateRef = useRef({});
-  stateRef.current = { mesas, seatPeople, pos, dir, moving, sitting, phase, playerSprite, decoItems, miMesa, nearModule, playerName, zoom, editSelId, fridge, pet, aura };
+  stateRef.current = { mesas, seatPeople, pos, dir, moving, sitting, phase, playerSprite, decoByMesa, miMesa, nearModule, playerName, zoom, editSelId, deskEditId, fridge, pet, aura };
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -319,15 +319,31 @@ export default function PixelRoom({
         else draws.push({y:m.y+m.h, fn:()=>{ drawModule(m, (s.nearModule&&s.nearModule.id===m.id)||sel); if(sel) drawSel(m); }});
       });
 
-      // deco en mi mesa
-      if(s.decoItems&&s.decoItems.length&&s.miMesa) {
-        const mm=s.miMesa;
-        draws.push({y:mm.y, fn:()=>{
-          ctx.font='11px serif'; ctx.textAlign='center';
-          const total=s.decoItems.length, gap=13;
-          s.decoItems.forEach((d,i)=>ctx.fillText(d.emoji, mm.x+mm.w/2+(i-(total-1)/2)*gap, mm.y-4));
-          ctx.textAlign='left';
-        }});
+      // deco de TODAS las mesas (con posición guardada; default si no tiene).
+      // Todos ven lo que cada quien compró y acomodó en su escritorio.
+      if (s.decoByMesa) {
+        (s.mesas || []).forEach((m) => {
+          const items = s.decoByMesa[m.id];
+          if (!items || !items.length) return;
+          const total = items.length, gap = 13;
+          const editing = s.deskEditId === m.id;
+          draws.push({ y: m.y + m.h + 0.5, fn: () => {
+            items.forEach((d, i) => {
+              const dx = (d.dx == null) ? (m.w / 2 + (i - (total - 1) / 2) * gap) : d.dx;
+              const dy = (d.dy == null) ? -4 : d.dy;
+              const ox = m.x + dx, oy = m.y + dy;
+              if (editing) {
+                ctx.fillStyle = 'rgba(52,211,153,0.25)';
+                ctx.strokeStyle = '#059669'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.arc(ox, oy - 3, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+              }
+              ctx.font = '11px serif'; ctx.textAlign = 'center';
+              ctx.fillStyle = '#000';
+              ctx.fillText(d.emoji, ox, oy);
+              ctx.textAlign = 'left';
+            });
+          }});
+        });
       }
 
       // sillas + personas sentadas

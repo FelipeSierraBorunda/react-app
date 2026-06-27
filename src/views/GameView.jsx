@@ -28,6 +28,7 @@ import {
   INSIGNIAS, insigniaDe, siguienteInsignia,
   PREMIO_EMPLEADO_MONEDAS, PREMIO_EMPLEADO_ITEM, semanaId,
   fetchQuiz, quizActivas, crearPregunta, responderPregunta, QUIZ_PREMIO,
+  QUIZ_PREMIO_MAX, yaPreguntoHoy,
 } from '../lib/game.js';
 import { T } from '../theme.js';
 import { Avatar, Pet, sleeperLook, lookFromEquipado } from '../components/Avatar.jsx';
@@ -64,6 +65,7 @@ export default function GameView({ go }) {
   const [gastado, setGastado] = useState(0);
   const [comprados, setComprados] = useState(BASE_OWNED);
   const [deco, setDeco] = useState([]);
+  const [decoPos, setDecoPos] = useState({});   // { itemId: {dx, dy} } posición en mi mesa
   const [equipado, setEquipado] = useState(EQUIPADO_DEFAULT);
   const [ultRecompensa, setUltRecompensa] = useState(null);
   const [premioSem, setPremioSem] = useState('');
@@ -107,6 +109,24 @@ export default function GameView({ go }) {
     try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(cur)); } catch (_) {}
     saveSala(cur).catch(() => {});
   }, []);
+  // Historial para deshacer cambios del editor (admin).
+  const historyRef = useRef([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const pushHistory = useCallback(() => {
+    historyRef.current.push(JSON.stringify(layoutRef.current));
+    if (historyRef.current.length > 40) historyRef.current.shift();
+    setCanUndo(true);
+  }, []);
+  const undo = useCallback(() => {
+    const prev = historyRef.current.pop();
+    if (prev == null) return;
+    let obj = {};
+    try { obj = JSON.parse(prev); } catch (_) {}
+    layoutRef.current = obj;
+    setLayout(obj);
+    setCanUndo(historyRef.current.length > 0);
+    persistCurrent();
+  }, [persistCurrent]);
   // refrigerador movible (parte del layout del juego)
   const fridge = useMemo(() => ({ ...FRIDGE_DEFAULT, ...(layout.__fridge || {}) }), [layout]);
 
@@ -157,6 +177,7 @@ export default function GameView({ go }) {
         setGastado(mine.gastado || 0);
         setComprados(Array.isArray(mine.comprados) && mine.comprados.length ? mine.comprados : BASE_OWNED);
         setDeco(Array.isArray(mine.deco) ? mine.deco : []);
+        setDecoPos(mine.deco_pos && typeof mine.deco_pos === 'object' ? mine.deco_pos : {});
         setEquipado({ ...EQUIPADO_DEFAULT, ...(mine.equipado || {}) });
         setUltRecompensa(mine.ult_recompensa || null);
         setPremioSem(mine.premio_sem || '');
@@ -215,10 +236,10 @@ export default function GameView({ go }) {
   // merge-duplicates, que REEMPLAZA toda la fila: si guardas solo {monedas}
   // se borran comprados/deco/equipado. Por eso cada guardado envía la fila
   // entera, tomando la base de este ref (siempre actualizado) + el patch.
-  const progresoRef = useRef({ monedas: 0, gastado: 0, comprados: BASE_OWNED, deco: [], equipado: EQUIPADO_DEFAULT, ult_recompensa: null, premio_sem: '' });
+  const progresoRef = useRef({ monedas: 0, gastado: 0, comprados: BASE_OWNED, deco: [], deco_pos: {}, equipado: EQUIPADO_DEFAULT, ult_recompensa: null, premio_sem: '' });
   useEffect(() => {
-    progresoRef.current = { monedas, gastado, comprados, deco, equipado, ult_recompensa: ultRecompensa, premio_sem: premioSem };
-  }, [monedas, gastado, comprados, deco, equipado, ultRecompensa, premioSem]);
+    progresoRef.current = { monedas, gastado, comprados, deco, deco_pos: decoPos, equipado, ult_recompensa: ultRecompensa, premio_sem: premioSem };
+  }, [monedas, gastado, comprados, deco, decoPos, equipado, ultRecompensa, premioSem]);
 
   const persist = useCallback((patch) => {
     if (!session) return;
@@ -270,6 +291,8 @@ export default function GameView({ go }) {
     setMonedas(nm); setGastado(ng);
     if (acc) {
       const nd = [...deco, item.id]; setDeco(nd); persist({ monedas: nm, gastado: ng, deco: nd });
+      // refleja de inmediato en mi mesa (y para los demás en el próximo refresh)
+      setJuegoRows((prev) => prev.map((r) => r.email === session?.email ? { ...r, deco: nd } : r));
     } else {
       const nc = [...comprados, item.id], ne = { ...equipado, [item.tipo]: item.id };
       setComprados(nc); setEquipado(ne); persist({ monedas: nm, gastado: ng, comprados: nc, equipado: ne });
@@ -356,6 +379,7 @@ export default function GameView({ go }) {
       }
     }
     if (seatHit) {
+      pushHistory();
       setSelMesaId(seatHit.mesaId);
       editRef.current = { type: 'seat', id: seatHit.mesaId, idx: seatHit.idx, ox: seatHit.ox, oy: seatHit.oy };
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
@@ -366,26 +390,29 @@ export default function GameView({ go }) {
     const hit = gameMesas.find((m) => w.x >= m.x && w.x <= m.x + m.w && w.y >= m.y && w.y <= m.y + m.h);
     const onFridge = w.x >= fridge.x && w.x <= fridge.x + fridge.w && w.y >= fridge.y && w.y <= fridge.y + fridge.h;
     if (hit) {
+      pushHistory();
       setSelMesaId(hit.id);
       editRef.current = { type: 'mesa', id: hit.id, ox: w.x - hit.x, oy: w.y - hit.y, w: hit.w, h: hit.h };
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
     } else if (onFridge) {
+      pushHistory();
       setSelMesaId('__fridge');
       editRef.current = { type: 'mesa', id: '__fridge', ox: w.x - fridge.x, oy: w.y - fridge.y, w: fridge.w, h: fridge.h };
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
     } else {
       setSelMesaId(null);
     }
-  }, [gameMesas, fridge, pointerToWorld]);
+  }, [gameMesas, fridge, pointerToWorld, pushHistory]);
 
   const onEditPointerMove = useCallback((e) => {
     const d = editRef.current; if (!d) return;
     const w = pointerToWorld(e); if (!w) return;
     if (d.type === 'seat') {
-      // Mover silla individual: dx/dy clampeados dentro de la mesa
+      // Mover silla individual: igual que el HTML — -34 px de margen fuera de la mesa
       const m = gameMesas.find(x => x.id === d.id); if (!m) return;
-      const newDx = clamp(Math.round(w.x - d.ox - m.x), 0, m.w - SEAT);
-      const newDy = clamp(Math.round(w.y - d.oy - m.y), 0, m.h - SEAT);
+      const MARGIN = 34;
+      const newDx = clamp(Math.round(w.x - d.ox - m.x), -MARGIN, m.w + MARGIN);
+      const newDy = clamp(Math.round(w.y - d.oy - m.y), -MARGIN, m.h + MARGIN);
       saveLayout(prev => {
         const ov = prev[d.id] || {};
         const so = { ...(ov.seatOffsets || {}), [d.idx]: { dx: newDx, dy: newDy } };
@@ -406,9 +433,10 @@ export default function GameView({ go }) {
 
   const editMesa = useCallback((patch) => {
     if (!selMesaId) return;
+    pushHistory();
     setOverride(selMesaId, patch);
     persistCurrent(); // cambios de panel (color, textura, tamaño) persisten de inmediato
-  }, [selMesaId, setOverride, persistCurrent]);
+  }, [selMesaId, setOverride, persistCurrent, pushHistory]);
 
   const [pos, setPos] = useState(SPAWN_FALLBACK);
   const [dir, setDir] = useState('up');
@@ -460,6 +488,60 @@ export default function GameView({ go }) {
     }
     return SPAWN_FALLBACK;
   }, [miMesa, session]);
+
+  // ---------- decorar mi mesa (todos, solo su propia mesa) ----------
+  const [deskEditMode, setDeskEditMode] = useState(false);
+  const decoOverlayRef = useRef(null);
+  const decoDragRef = useRef(null);
+  const decoPosRef = useRef({});
+  useEffect(() => { decoPosRef.current = decoPos; }, [decoPos]);
+
+  // Posiciones efectivas (con defaults) de MI deco sobre MI mesa.
+  const myDecoLayout = useMemo(() => {
+    if (!miMesa) return [];
+    const ids = (deco || []).map(itemById).filter((it) => it && it.emoji).map((it) => it.id);
+    const total = ids.length, gap = 13;
+    return ids.map((id, i) => {
+      const p = decoPos[id];
+      const it = itemById(id);
+      const dx = p ? p.dx : (miMesa.w / 2 + (i - (total - 1) / 2) * gap);
+      const dy = p ? p.dy : -4;
+      return { id, emoji: it.emoji, dx, dy };
+    });
+  }, [miMesa, deco, decoPos]);
+
+  const onDecoPointerDown = useCallback((e) => {
+    if (!miMesa) return;
+    const w = pointerToWorld(e); if (!w) return;
+    let hit = null;
+    for (const d of myDecoLayout) {
+      const ax = miMesa.x + d.dx, ay = miMesa.y + d.dy;
+      if (Math.abs(w.x - ax) < 9 && Math.abs(w.y - ay) < 9) { hit = d; break; }
+    }
+    if (hit) {
+      decoDragRef.current = { id: hit.id, ox: w.x - (miMesa.x + hit.dx), oy: w.y - (miMesa.y + hit.dy) };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+  }, [miMesa, myDecoLayout, pointerToWorld]);
+
+  const onDecoPointerMove = useCallback((e) => {
+    const d = decoDragRef.current; if (!d || !miMesa) return;
+    const w = pointerToWorld(e); if (!w) return;
+    // Clamp dentro de la mesa (margen pequeño arriba para que se vea el objeto)
+    const newDx = clamp(Math.round(w.x - d.ox - miMesa.x), 4, miMesa.w - 4);
+    const newDy = clamp(Math.round(w.y - d.oy - miMesa.y), -14, miMesa.h - 4);
+    const next = { ...decoPosRef.current, [d.id]: { dx: newDx, dy: newDy } };
+    decoPosRef.current = next;
+    setDecoPos(next);
+  }, [miMesa, pointerToWorld]);
+
+  const onDecoPointerUp = useCallback(() => {
+    if (!decoDragRef.current) return;
+    decoDragRef.current = null;
+    const next = decoPosRef.current;
+    setJuegoRows((prev) => prev.map((r) => r.email === session?.email ? { ...r, deco_pos: next } : r));
+    persist({ deco_pos: next });
+  }, [session]); // eslint-disable-line
 
   // Coloca el avatar en su spawn una vez que cargan las mesas (si aún no se ha movido).
   const placedRef = useRef(false);
@@ -566,6 +648,44 @@ export default function GameView({ go }) {
 
   const presentEmails = useMemo(() => new Set((presentes || []).map((p) => p.email)), [presentes]);
 
+  // Resuelve el email de un dueño guardado como nombre o como correo.
+  const resolveEmail = useCallback((nombre) => {
+    const raw = String(nombre || '').trim();
+    const key = raw.toLowerCase();
+    if (accounts && accounts[raw]) return raw;
+    if (key.includes('@')) return raw;
+    return emailByName[key] || emailByName[key.split(' ')[0]] || null;
+  }, [accounts, emailByName]);
+
+  // Mapa de la fila de juego por email (para ver ropa/deco de otros).
+  const rowByEmail = useMemo(() => {
+    const m = {};
+    (juegoRows || []).forEach((r) => { if (r && r.email) m[r.email] = r; });
+    return m;
+  }, [juegoRows]);
+
+  // Deco de cada mesa (de sus dueños) — todos ven lo que compraste y acomodaste.
+  const decoByMesa = useMemo(() => {
+    const out = {};
+    gameMesas.forEach((m) => {
+      const owners = (m.duenos || []).map(resolveEmail).filter(Boolean);
+      const items = [];
+      owners.forEach((em) => {
+        const row = rowByEmail[em];
+        if (!row || !Array.isArray(row.deco)) return;
+        const pos = (row.deco_pos && typeof row.deco_pos === 'object') ? row.deco_pos : {};
+        row.deco.forEach((id) => {
+          const it = itemById(id);
+          if (!it || !it.emoji) return;
+          const p = pos[id];
+          items.push({ id, emoji: it.emoji, dx: p ? p.dx : null, dy: p ? p.dy : null });
+        });
+      });
+      if (items.length) out[m.id] = items;
+    });
+    return out;
+  }, [gameMesas, rowByEmail, resolveEmail]);
+
   const seatPeople = useMemo(() => {
     const out = [];
     const myName = (session?.nombre || '').trim().toLowerCase();
@@ -576,21 +696,14 @@ export default function GameView({ go }) {
       const pn = String(person.nombre || '').trim().toLowerCase();
       return pn === myName || (myFirst && pn.split(' ')[0] === myFirst);
     };
-    const resolveEmail = (nombre) => {
-      const raw = String(nombre || '').trim();
-      const key = raw.toLowerCase();
-      // El dueño puede estar guardado ya como email (cuentas nuevas) o como nombre (legado).
-      if (accounts && accounts[raw]) return raw;
-      if (key.includes('@')) return raw;
-      return emailByName[key] || emailByName[key.split(' ')[0]] || null;
-    };
+    const resolveEmailLocal = resolveEmail;
     gameMesas.forEach((m) => {
       if (!m.seats) return;
       const onSeats = m.seats.filter((s) => s.on);
       if (!onSeats.length) return;
 
       const owners = (m.duenos || []).map((nombre) => {
-        const email = resolveEmail(nombre);
+        const email = resolveEmailLocal(nombre);
         const disp = email ? nombreDe(email) : nombre;   // mostrar NOMBRE, no correo
         return { nombre: disp, email };
       });
@@ -614,7 +727,7 @@ export default function GameView({ go }) {
       });
     });
     return out;
-  }, [gameMesas, presentesPorMesa, session, emailByName, lookByEmail, presentEmails, nombreDe]);
+  }, [gameMesas, presentesPorMesa, session, emailByName, lookByEmail, presentEmails, nombreDe, resolveEmail]);
 
   const sittingRef = useRef(true); sittingRef.current = sitting;
   const seatRef = useRef([]); seatRef.current = seatPeople;
@@ -622,8 +735,6 @@ export default function GameView({ go }) {
   const playerSprite = useMemo(() => spriteFromEquipado(equipado, itemById), [equipado]);
   const pet = itemById(equipado.mascota);
   const aura = itemById(equipado.aura);
-  const deskFloor = itemById(equipado.escritorio) || itemById('desk_gris');
-  const decoItems = deco.map(itemById).filter(Boolean);
 
   // ----------------- MÓVIL -----------------
   if (isMobile) {
@@ -674,8 +785,16 @@ export default function GameView({ go }) {
           </button>
           <button onClick={() => setCustOpen(true)} style={btnHud('#fff', T.ink, T.border)}>🎨 {t('game.customize')}</button>
           <button onClick={() => setShopOpen(true)} style={btnHud('#DA291C', '#fff', '#DA291C')}>🏪 OXXO</button>
+          {miMesa && (
+            <button onClick={() => { setDeskEditMode((v) => !v); setEditMode(false); }} title="Acomoda los objetos de tu escritorio" style={btnHud(deskEditMode ? '#34D399' : '#fff', deskEditMode ? '#053a28' : T.ink, deskEditMode ? '#059669' : T.border)}>🪴 {deskEditMode ? 'Listo' : 'Decorar mesa'}</button>
+          )}
           {isAdmin && (
-            <button onClick={() => { setEditMode((v) => !v); setSelMesaId(null); }} style={btnHud(editMode ? '#FACC15' : '#fff', editMode ? '#3a2d00' : T.ink, editMode ? '#CA8A04' : T.border)}>✎ {editMode ? 'Listo' : 'Editar'}</button>
+            <>
+              {editMode && (
+                <button onClick={undo} disabled={!canUndo} title="Deshacer último cambio" style={{ ...btnHud(canUndo ? '#fff' : '#F1F5F9', canUndo ? T.ink : '#94A3B8', T.border), cursor: canUndo ? 'pointer' : 'default' }}>↩ Deshacer</button>
+              )}
+              <button onClick={() => { setEditMode((v) => !v); setSelMesaId(null); setDeskEditMode(false); }} style={btnHud(editMode ? '#FACC15' : '#fff', editMode ? '#3a2d00' : T.ink, editMode ? '#CA8A04' : T.border)}>✎ {editMode ? 'Listo' : 'Editar'}</button>
+            </>
           )}
         </div>
       </div>
@@ -700,11 +819,12 @@ export default function GameView({ go }) {
           playerSprite={playerSprite}
           pet={pet}
           aura={aura}
-          decoItems={decoItems}
+          decoByMesa={decoByMesa}
           miMesa={miMesa}
           nearModule={nearModule}
           zoom={zoom}
           editSelId={editMode ? selMesaId : null}
+          deskEditId={deskEditMode && miMesa ? miMesa.id : null}
           playerName={session ? (nombreDe ? nombreDe(session.email) : session.nombre) : t('game.you')}
         />
         {editMode && (
@@ -716,10 +836,30 @@ export default function GameView({ go }) {
             style={{ position: 'absolute', inset: 6, cursor: editRef.current ? 'grabbing' : 'grab', touchAction: 'none' }}
           />
         )}
+        {deskEditMode && (
+          <div
+            ref={decoOverlayRef}
+            onPointerDown={onDecoPointerDown}
+            onPointerMove={onDecoPointerMove}
+            onPointerUp={onDecoPointerUp}
+            style={{ position: 'absolute', inset: 6, cursor: decoDragRef.current ? 'grabbing' : 'grab', touchAction: 'none' }}
+          />
+        )}
       </div>
 
       {editMode && (
         <EditPanel mesa={selMesa} onChange={editMesa} onDeselect={() => setSelMesaId(null)} />
+      )}
+
+      {deskEditMode && (
+        <div style={{ maxWidth: 880, margin: '12px auto 0', display: 'flex', alignItems: 'center', gap: 10, background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 12, padding: '12px 16px' }}>
+          <span style={{ fontSize: 18 }}>🪴</span>
+          <span style={{ fontSize: 12.5, color: '#065F46', fontWeight: 600 }}>
+            {myDecoLayout.length
+              ? 'Arrastra los objetos de tu mesa para acomodarlos. Se guardan en línea y todos los ven.'
+              : 'Aún no tienes objetos. Compra decoración (🪴) en el OXXO para acomodarla aquí.'}
+          </span>
+        </div>
       )}
 
       <p style={{ textAlign: 'center', fontSize: 12.5, color: T.muted, marginTop: 12 }}>
@@ -741,9 +881,35 @@ export default function GameView({ go }) {
         </span>
       </div>
 
+      {/* Jugadores en línea (registrados como presentes en el lab) */}
+      <div style={{ maxWidth: 880, margin: '14px auto 0', background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: '12px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#22C55E', boxShadow: '0 0 0 3px rgba(34,197,94,0.18)' }} />
+          <strong style={{ fontSize: 13, color: T.ink }}>En línea ahora</strong>
+          <span style={{ fontSize: 12, fontWeight: 800, color: '#16A34A', background: '#F0FDF4', borderRadius: 20, padding: '1px 9px' }}>{(presentes || []).length}</span>
+        </div>
+        {(presentes || []).length === 0 ? (
+          <p style={{ fontSize: 12.5, color: T.muted, margin: 0 }}>Nadie tiene check-in abierto en el laboratorio.</p>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {(presentes || []).map((p) => {
+              const yo = session && p.email === session.email;
+              const nom = nombreDe ? nombreDe(p.email) : p.nombre;
+              const ini = String(nom || '?').trim().charAt(0).toUpperCase();
+              return (
+                <span key={p.email || p.nombre} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 700, color: yo ? '#7C2D12' : T.inkSoft, background: yo ? '#FFF7ED' : '#F8FAFC', border: `1px solid ${yo ? '#FED7AA' : T.border}`, borderRadius: 20, padding: '4px 11px 4px 5px' }}>
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: yo ? '#FB923C' : '#64748B', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 800 }}>{ini}</span>
+                  {nom}{yo && <span style={{ fontSize: 10.5, color: '#B45309' }}>(tú)</span>}
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {shopOpen && <OxxoShop t={t} monedas={monedas} comprados={comprados} deco={deco} equipado={equipado} insignia={insignia} gastado={gastado} onBuy={comprar} onClose={() => setShopOpen(false)} />}
       {custOpen && <Customizer t={t} equipado={equipado} onLook={setLook} onClose={() => setCustOpen(false)} />}
-      {quizOpen && <QuizModal t={t} session={session} preguntas={activas} mis={misRespuestas} onResponder={responder} onCrear={nuevaPregunta} onClose={() => setQuizOpen(false)} />}
+      {quizOpen && <QuizModal t={t} session={session} preguntas={activas} mis={misRespuestas} yaPregunto={session ? yaPreguntoHoy(quizPreguntas, session.email) : false} onResponder={responder} onCrear={nuevaPregunta} onClose={() => setQuizOpen(false)} />}
       {modulo && <ModuloModal t={t} modulo={modulo} inv={inv} invAccess={invAccess} go={go} onClose={() => setModulo(null)} />}
 
       <style>{`@keyframes gv-pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
@@ -817,7 +983,6 @@ function OxxoShop({ t, monedas, comprados, deco, equipado, insignia, gastado, on
     ['sombrero', '🎩 ' + t('game.hats')],
     ['mascota', '🐾 ' + t('game.pets')],
     ['deco', '🪴 ' + t('game.deco')],
-    ['escritorio', '🟫 ' + t('game.floors')],
     ['aura', '✨ ' + t('game.auras')],
   ];
   return (
@@ -908,7 +1073,7 @@ function Customizer({ t, equipado, onLook, onClose }) {
 }
 
 /* ---------- QUIZ ---------- */
-function QuizModal({ t, session, preguntas, mis, onResponder, onCrear, onClose }) {
+function QuizModal({ t, session, preguntas, mis, yaPregunto, onResponder, onCrear, onClose }) {
   const [tab, setTab] = useState('responder'); // responder | crear
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 500, display: 'grid', placeItems: 'center', padding: 20 }}>
@@ -925,7 +1090,7 @@ function QuizModal({ t, session, preguntas, mis, onResponder, onCrear, onClose }
         <div style={{ padding: '16px 22px 22px', overflowY: 'auto' }}>
           {!session && <p style={{ fontSize: 13, color: T.muted }}>{t('game.quizLogin')}</p>}
           {session && tab === 'responder' && <AnswerList t={t} session={session} preguntas={preguntas} mis={mis} onResponder={onResponder} />}
-          {session && tab === 'crear' && <CreateForm t={t} onCrear={onCrear} />}
+          {session && tab === 'crear' && <CreateForm t={t} yaPregunto={yaPregunto} onCrear={onCrear} />}
         </div>
       </div>
     </div>
@@ -975,24 +1140,34 @@ function AnswerList({ t, session, preguntas, mis, onResponder }) {
   );
 }
 
-function CreateForm({ t, onCrear }) {
+function CreateForm({ t, yaPregunto, onCrear }) {
   const [texto, setTexto] = useState('');
   const [ops, setOps] = useState(['', '', '']);
   const [correcta, setCorrecta] = useState(0);
   const [premio, setPremio] = useState(QUIZ_PREMIO);
   const [done, setDone] = useState(false);
-  const valido = texto.trim() && ops.every((o) => o.trim());
+  const valido = texto.trim() && ops.every((o) => o.trim()) && !yaPregunto;
 
   async function submit() {
     if (!valido) return;
-    await onCrear({ texto: texto.trim(), opciones: ops.map((o) => o.trim()), correcta, premio: Number(premio) || QUIZ_PREMIO });
+    const pr = Math.max(QUIZ_PREMIO, Math.min(QUIZ_PREMIO_MAX, Number(premio) || QUIZ_PREMIO));
+    await onCrear({ texto: texto.trim(), opciones: ops.map((o) => o.trim()), correcta, premio: pr });
     setTexto(''); setOps(['', '', '']); setCorrecta(0); setPremio(QUIZ_PREMIO);
     setDone(true); setTimeout(() => setDone(false), 2500);
   }
 
+  if (yaPregunto) {
+    return (
+      <div style={{ textAlign: 'center', padding: '28px 14px', color: T.muted }}>
+        <div style={{ fontSize: 30, marginBottom: 8 }}>⏳</div>
+        <p style={{ fontSize: 13.5, margin: 0, lineHeight: 1.5 }}>Ya creaste tu pregunta de hoy. Puedes crear otra mañana — así nadie farmea preguntas.</p>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <p style={{ fontSize: 12, color: T.muted, margin: 0 }}>{t('game.createHint')}</p>
+      <p style={{ fontSize: 12, color: T.muted, margin: 0 }}>{t('game.createHint')} · Máx. 1 pregunta por día.</p>
       <div>
         <label style={qlbl}>{t('game.question')}</label>
         <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={2} placeholder="¿Qué hace un capacitor en…?" style={{ ...qinp, resize: 'vertical' }} />
@@ -1005,8 +1180,8 @@ function CreateForm({ t, onCrear }) {
       ))}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <label style={{ ...qlbl, margin: 0 }}>{t('game.reward')}</label>
-        <input type="number" min={5} max={100} value={premio} onChange={(e) => setPremio(e.target.value)} style={{ ...qinp, width: 90 }} />
-        <span style={{ fontSize: 12, color: T.muted }}>🪙</span>
+        <input type="number" min={QUIZ_PREMIO} max={QUIZ_PREMIO_MAX} value={premio} onChange={(e) => setPremio(e.target.value)} style={{ ...qinp, width: 90 }} />
+        <span style={{ fontSize: 12, color: T.muted }}>🪙 (máx {QUIZ_PREMIO_MAX})</span>
       </div>
       <button onClick={submit} disabled={!valido} style={{ padding: '11px 16px', borderRadius: 10, border: 'none', background: valido ? T.primary : '#CBD5E1', color: '#fff', fontWeight: 700, fontSize: 14, cursor: valido ? 'pointer' : 'default', fontFamily: T.font }}>
         {done ? '✓ ' + t('game.published') : t('game.publish')}

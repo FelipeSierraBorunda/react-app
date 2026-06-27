@@ -163,11 +163,14 @@ CREATE TABLE IF NOT EXISTS juego (
   gastado        INTEGER NOT NULL DEFAULT 0,
   comprados      JSONB   NOT NULL DEFAULT '[]'::jsonb,
   deco           JSONB   NOT NULL DEFAULT '[]'::jsonb,
+  deco_pos       JSONB   NOT NULL DEFAULT '{}'::jsonb,
   equipado       JSONB   NOT NULL DEFAULT '{}'::jsonb,
   ult_recompensa TIMESTAMPTZ,
   premio_sem     TEXT,
   actualizado    TIMESTAMPTZ DEFAULT NOW()
 );
+-- Si la tabla ya existía sin deco_pos, agrega la columna (seguro re-ejecutar).
+ALTER TABLE juego ADD COLUMN IF NOT EXISTS deco_pos JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE juego ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "public_all" ON juego;
 CREATE POLICY "public_all" ON juego FOR ALL USING (true) WITH CHECK (true);

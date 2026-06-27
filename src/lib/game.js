@@ -33,22 +33,25 @@ export const TIENDA = [
   { id: 'hat_grad',    tipo: 'sombrero', nombre: 'Birrete',       precio: 120, color: '#0F172A' },
   { id: 'hat_beanie',  tipo: 'sombrero', nombre: 'Gorro',         precio: 90,  color: '#7C3AED' },
   { id: 'hat_crown',   tipo: 'sombrero', nombre: 'Corona',        precio: 500, color: '#EAB308' },
-  // Mascotas
+  // Mascotas (emoji que se dibuja junto al avatar)
   { id: 'pet_none',    tipo: 'mascota', nombre: 'Sin mascota',    precio: 0,   color: 'transparent' },
-  { id: 'pet_cat',     tipo: 'mascota', nombre: 'Gato',           precio: 110, color: '#F97316' },
-  { id: 'pet_dog',     tipo: 'mascota', nombre: 'Perro',          precio: 130, color: '#A16207' },
-  { id: 'pet_robot',   tipo: 'mascota', nombre: 'Robot',          precio: 200, color: '#64748B' },
-  { id: 'pet_drone',   tipo: 'mascota', nombre: 'Dron',           precio: 260, color: '#0EA5E9' },
-  { id: 'pet_chip',    tipo: 'mascota', nombre: 'Chip vivo',      precio: 320, color: '#10B981' },
-  // Escritorios (color del tapete/piso bajo el avatar)
-  { id: 'desk_gris',   tipo: 'escritorio', nombre: 'Piso gris',   precio: 0,   color: '#E2E8F0' },
-  { id: 'desk_madera', tipo: 'escritorio', nombre: 'Piso madera', precio: 60,  color: '#D6A45B' },
-  { id: 'desk_azul',   tipo: 'escritorio', nombre: 'Piso azul',   precio: 80,  color: '#BFDBFE' },
-  { id: 'desk_neon',   tipo: 'escritorio', nombre: 'Piso neón',   precio: 180, color: '#A7F3D0' },
+  { id: 'pet_cat',     tipo: 'mascota', nombre: 'Gato',           precio: 110, color: '#F97316', emoji: '🐱' },
+  { id: 'pet_dog',     tipo: 'mascota', nombre: 'Perro',          precio: 130, color: '#A16207', emoji: '🐶' },
+  { id: 'pet_robot',   tipo: 'mascota', nombre: 'Robot',          precio: 200, color: '#64748B', emoji: '🤖' },
+  { id: 'pet_drone',   tipo: 'mascota', nombre: 'Dron',           precio: 260, color: '#0EA5E9', emoji: '🚁' },
+  { id: 'pet_chip',    tipo: 'mascota', nombre: 'Chip vivo',      precio: 320, color: '#10B981', emoji: '🐞' },
+  { id: 'pet_pollo',   tipo: 'mascota', nombre: 'Pollo',          precio: 90,  color: '#FBBF24', emoji: '🐤' },
+  { id: 'pet_dino',    tipo: 'mascota', nombre: 'Dino',           precio: 400, color: '#22C55E', emoji: '🦖' },
   // Auras (efecto alrededor del avatar)
   { id: 'aura_none',   tipo: 'aura', nombre: 'Sin aura',          precio: 0,   color: 'transparent' },
   { id: 'aura_glow',   tipo: 'aura', nombre: 'Aura brillante',    precio: 300, color: '#FACC15' },
   { id: 'aura_ice',    tipo: 'aura', nombre: 'Aura de hielo',     precio: 300, color: '#67E8F9' },
+  { id: 'aura_fire',   tipo: 'aura', nombre: 'Aura de fuego',     precio: 320, color: '#F97316' },
+  { id: 'aura_toxic',  tipo: 'aura', nombre: 'Aura tóxica',       precio: 320, color: '#84CC16' },
+  { id: 'aura_pink',   tipo: 'aura', nombre: 'Aura rosa',         precio: 280, color: '#EC4899' },
+  { id: 'aura_purple', tipo: 'aura', nombre: 'Aura púrpura',      precio: 340, color: '#A855F7' },
+  { id: 'aura_shadow', tipo: 'aura', nombre: 'Aura sombra',       precio: 360, color: '#1E293B' },
+  { id: 'aura_rainbow',tipo: 'aura', nombre: 'Aura arcoíris',     precio: 500, color: '#22D3EE' },
   // Decoración del escritorio propio (varias a la vez)
   { id: 'deco_planta', tipo: 'deco', nombre: 'Planta',     precio: 50,  emoji: '🪴' },
   { id: 'deco_lampara',tipo: 'deco', nombre: 'Lámpara',    precio: 60,  emoji: '💡' },
@@ -204,8 +207,18 @@ export function startOfWeek(d) {
 // QUIZ colaborativo — preguntas creadas por usuarios, 3 opciones, 24 h,
 // una respuesta por usuario. Respuesta correcta = monedas.
 // =====================================================================
-export const QUIZ_PREMIO = 15;        // monedas por acierto
+export const QUIZ_PREMIO = 15;        // monedas por acierto (default)
+export const QUIZ_PREMIO_MAX = 50;    // tope de monedas por pregunta
 export const QUIZ_VIDA_H = 24;        // horas que vive una pregunta
+
+// ¿El usuario ya creó una pregunta hoy? (1 por día para evitar farmeo)
+export function yaPreguntoHoy(preguntas, email, now = new Date()) {
+  if (!email) return false;
+  const hoy = now.toDateString();
+  return (preguntas || []).some(
+    (p) => p.autor_email === email && new Date(p.creado).toDateString() === hoy
+  );
+}
 
 export async function fetchQuiz() {
   try {
@@ -226,6 +239,7 @@ export function quizActivas(preguntas, now = new Date()) {
 
 export async function crearPregunta(session, { texto, opciones, correcta, premio }) {
   const ahora = new Date();
+  const premioClamp = Math.max(QUIZ_PREMIO, Math.min(QUIZ_PREMIO_MAX, premio || QUIZ_PREMIO));
   const row = {
     id: uid(),
     autor_email: session?.email || '',
@@ -233,7 +247,7 @@ export async function crearPregunta(session, { texto, opciones, correcta, premio
     texto: (texto || '').trim(),
     opciones,
     correcta,
-    premio: premio || QUIZ_PREMIO,
+    premio: premioClamp,
     creado: ahora.toISOString(),
     expira: new Date(ahora.getTime() + QUIZ_VIDA_H * 3600 * 1000).toISOString(),
   };
