@@ -9,13 +9,36 @@
 // Prefijo base (en GitHub Pages es '/react-app/', en local '/')
 const B = import.meta.env.BASE_URL;
 
+// Distribución de divisiones por fila de una caja Truper (18 divisiones):
+// fila 1 → 6, fila 2 → 4, fila 3 → 2, fila 4 → 6. Suma = 18.
+export const TRUPER_ROWS = [6, 4, 2, 6];
+export const TRUPER_COMPARTMENTS = TRUPER_ROWS.reduce((a, b) => a + b, 0); // 18
+
+// Nº de compartimentos por tipo de contenedor (para crear cajas nuevas)
+export const COMPARTMENTS_BY_TYPE = {
+  gabinete: 64,
+  caja12: 12,
+  truper: TRUPER_COMPARTMENTS,
+  caja_libre: undefined,
+};
+
+// Construye la URL de imagen a partir de un nombre de archivo (que el
+// usuario sube manualmente a public/images en GitHub). Devuelve null si
+// no se indica archivo.
+export const imageUrl = (filename) =>
+  filename && filename.trim() ? B + 'images/' + filename.trim().replace(/^.*[\\/]/, '') : null;
+
 export const CONTAINERS = [
   { id: 'G1', name: 'Gabinete 1', type: 'gabinete', compartments: 64, image: B + 'images/gabinete.png' },
   { id: 'G2', name: 'Gabinete 2', type: 'gabinete', compartments: 64, image: B + 'images/gabinete.png' },
-  { id: 'C1', name: 'Caja 1', type: 'caja12', compartments: 12, image: B + 'images/caja12.png' },
+  { id: 'C1', name: 'Caja 1', type: 'truper', compartments: TRUPER_COMPARTMENTS, image: B + 'images/caja12.png' },
   { id: 'C2', name: 'Caja 2', type: 'caja12', compartments: 12, image: B + 'images/caja12.png' },
   { id: 'C3', name: 'Caja 3', type: 'caja_libre', image: B + 'images/caja-c3.png' },
   { id: 'C4', name: 'Caja 4', type: 'caja_libre', image: B + 'images/caja-c4.png' },
+  { id: 'CT1', name: 'Caja Truper 1', type: 'truper', compartments: TRUPER_COMPARTMENTS, image: B + 'images/caja-truper-1.png' },
+  { id: 'CT2', name: 'Caja Truper 2', type: 'truper', compartments: TRUPER_COMPARTMENTS, image: B + 'images/caja-truper-2.png' },
+  { id: 'CT3', name: 'Caja Truper 3', type: 'truper', compartments: TRUPER_COMPARTMENTS, image: B + 'images/caja-truper-3.png' },
+  { id: 'CT4', name: 'Caja Truper 4', type: 'truper', compartments: TRUPER_COMPARTMENTS, image: B + 'images/caja-truper-4.png' },
 ];
 
 export const TIPOS = [
@@ -33,7 +56,7 @@ export const TC = {
 };
 
 // Prefijo de código interno por contenedor
-export const PREFIX = { G1: '0', G2: '1', C1: '2', C2: '3', C3: '4', C4: '5' };
+export const PREFIX = { G1: '0', G2: '1', C1: '2', C2: '3', C3: '4', C4: '5', CT1: '6', CT2: '7', CT3: '8', CT4: '9' };
 
 // Etiquetas y colores para el registro de actividad
 export const TYPELBL = {

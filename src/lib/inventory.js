@@ -22,7 +22,7 @@ export async function fetchComponents() {
 
 // Calcula el siguiente código interno para un contenedor (ej. "2.004")
 export function nextCode(contId, comps) {
-  const pfx = PREFIX[contId] || '9';
+  const pfx = PREFIX[contId] || 'X';
   const used = (comps || [])
     .filter((c) => String(c.codigoInterno || '').startsWith(pfx + '.'))
     .map((c) => parseInt(String(c.codigoInterno).split('.')[1], 10) || 0);

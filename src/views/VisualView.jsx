@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import { useInventory } from '../context/InventoryContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useLab } from '../context/LabContext.jsx';
-import { CONTAINERS, rgba } from '../lib/constants.js';
+import { CONTAINERS, TRUPER_ROWS, rgba } from '../lib/constants.js';
 import { T, card } from '../theme.js';
 import NewBoxModal from '../components/NewBoxModal.jsx';
 import DrawerModal from '../components/DrawerModal.jsx';
@@ -23,6 +23,7 @@ export default function VisualView({ go, goEdit }) {
   const ct = allBoxes.find((c) => c.id === active);
   const isG = ct?.type === 'gabinete';
   const isC12 = ct?.type === 'caja12';
+  const isTruper = ct?.type === 'truper';
   const isCL = ct?.type === 'caja_libre';
 
   const ctComps = useMemo(() => comps.filter((c) => c.contenedor === active), [comps, active]);
@@ -56,6 +57,15 @@ export default function VisualView({ go, goEdit }) {
       };
     });
   }, [ct, ctComps, tcMap]);
+
+  // Agrupa las 18 celdas en filas para el layout Truper (6·4·2·6)
+  const truperRows = useMemo(() => {
+    if (!isTruper) return [];
+    const rows = [];
+    let i = 0;
+    for (const n of TRUPER_ROWS) { rows.push(cells.slice(i, i + n)); i += n; }
+    return rows;
+  }, [isTruper, cells]);
 
   const stats = useMemo(() => {
     const totalDrawers = ct?.compartments || 0;
@@ -103,7 +113,7 @@ export default function VisualView({ go, goEdit }) {
       <div style={{ ...card, padding: 24 }}>
         <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700 }}>{ct.name}</h2>
         <p style={{ margin: '0 0 14px', fontSize: 13, color: '#64748B' }}>
-          {(isG || isC12) ? 'Haz clic en un cajón para ver su contenido · los cajones coloreados tienen componentes' : 'Esta caja no tiene compartimentos · consulta su contenido abajo'}
+          {(isG || isC12 || isTruper) ? 'Haz clic en un cajón para ver su contenido · los cajones coloreados tienen componentes' : 'Esta caja no tiene compartimentos · consulta su contenido abajo'}
         </p>
 
         {/* Ubicación del contenedor (mesa/módulo). Editable por admin. */}
@@ -171,6 +181,32 @@ export default function VisualView({ go, goEdit }) {
           </div>
         )}
 
+        {/* CAJA TRUPER 18 — imagen + filas 6·4·2·6 */}
+        {isTruper && (
+          <div className="resp-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 28, alignItems: 'start' }}>
+            {ct.image && <img src={ct.image} alt={ct.name} style={{ width: '100%', aspectRatio: '1/1.05', borderRadius: 8, border: `1px solid ${T.border}`, objectFit: 'cover', background: '#F8FAFC' }} />}
+            <div>
+              <p style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>Haz clic en un compartimento para ver su contenido:</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {truperRows.map((row, ri) => (
+                  <div key={ri} style={{ display: 'flex', gap: 8 }}>
+                    {row.map((cell) => (
+                      <div key={cell.num} onClick={() => setDrawer({ cid: active, n: cell.num })} title={cell.title}
+                        style={{ flex: 1, cursor: 'pointer', borderRadius: 8, background: cell.bg, border: `2px solid ${cell.borderColor}`, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, minHeight: 60, transition: 'all 0.15s' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.primary; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = cell.borderColor; }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#475569', pointerEvents: 'none' }}>{cell.num}</span>
+                        {cell.hasItems && <span style={{ fontSize: 9, color: T.primary, background: '#DBEAFE', borderRadius: 3, padding: '0 4px', pointerEvents: 'none', lineHeight: 1.5 }}>{cell.itemCount}</span>}
+                        {cell.hasItems && <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: cell.fillColor, pointerEvents: 'none' }} />}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* CAJA LIBRE — imagen + texto */}
         {isCL && (
           <div className="resp-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 32, alignItems: 'start' }}>
@@ -188,7 +224,7 @@ export default function VisualView({ go, goEdit }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
             {/* % utilizado con barra de progreso */}
             <div style={{ background: '#F8FAFC', borderRadius: 10, border: `1px solid ${T.border}`, padding: 16 }}>
-              <div style={statLabel}>{isG ? 'Gabinete utilizado' : isC12 ? 'Caja utilizada' : 'Componentes guardados'}</div>
+              <div style={statLabel}>{isG ? 'Gabinete utilizado' : (isC12 || isTruper) ? 'Caja utilizada' : 'Componentes guardados'}</div>
               <div style={statBig}>{isCL ? ctComps.length : `${stats.pct}%`}</div>
               {!isCL && (
                 <div style={{ height: 8, background: '#EEF2F7', borderRadius: 4, overflow: 'hidden', marginTop: 10 }}>
@@ -211,7 +247,7 @@ export default function VisualView({ go, goEdit }) {
           <button onClick={() => setDrawer({ cid: active, all: true })} style={{ marginTop: 14, padding: '10px 18px', background: '#0F172A', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: T.font }}>Ver contenido completo →</button>
 
           {/* LEYENDA (solo gabinete/caja12) */}
-          {(isG || isC12) && (
+          {(isG || isC12 || isTruper) && (
             <div style={{ marginTop: 22, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 24 }}>
               <div>
                 <div style={legendHdr}>Color del recuadro = tipo de componente</div>
