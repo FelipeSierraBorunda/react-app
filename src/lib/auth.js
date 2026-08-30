@@ -1,87 +1,135 @@
 /* =====================================================================
-   auth.js — Registro, login y sesión (respaldado por Supabase)
+   auth.js — Registro, login, sesión y recuperación de contraseña
    ---------------------------------------------------------------------
-   Funciones puras de autenticación. El estado de React (quién está
-   logueado) lo gestiona AuthContext; aquí solo hablamos con Supabase y
-   con localStorage para recordar la sesión entre recargas.
+   Ahora respaldado por Supabase Auth (auth.users). Supabase hace el
+   hashing de la contraseña del lado del servidor y gestiona el JWT de
+   sesión; aquí solo traducimos errores al español y leemos el perfil.
 
-   NOTA DE SEGURIDAD: el hash es un placeholder de prototipo. En
-   producción, usa Supabase Auth (auth.signUp / signInWithPassword) que
-   hace el hashing del lado del servidor — no guardes contraseñas tú.
+   Cada usuario de Supabase Auth tiene una fila en la tabla `perfiles`
+   (id = auth.users.id) creada automáticamente por el trigger
+   `handle_new_user` de la base de datos. Guarda: email, nombre e
+   `inv_access` (permiso para ver el inventario privado).
+
+   La forma de "sesión" que consume la app sigue siendo { email, nombre }
+   (ver AuthContext), así que el resto del código no cambió.
    ===================================================================== */
 
-import { db } from './supabase.js';
+import { supabase } from './supabase.js';
 
-const SESSION_KEY = 'li_session';
+// URL a la que Supabase devuelve al usuario tras confirmar el correo o
+// abrir el enlace de recuperación. En GitHub Pages es .../react-app/.
+const redirectTo = () => `${window.location.origin}${import.meta.env.BASE_URL || '/'}`;
 
-// Hash determinista simple — SOLO para no guardar texto plano en el proto.
-function hash(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) {
-    h = (h << 5) - h + str.charCodeAt(i);
-    h |= 0;
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+// Traduce los mensajes de Supabase (en inglés) a algo legible en español.
+function traducir(msg = '') {
+  const m = msg.toLowerCase();
+  if (m.includes('invalid login credentials')) return 'Correo o contraseña incorrectos';
+  if (m.includes('email not confirmed')) return 'Confirma tu correo antes de entrar. Revisa tu bandeja (y spam).';
+  if (m.includes('already registered') || m.includes('already been registered')) return 'Ya existe una cuenta con ese correo. Inicia sesión.';
+  if (m.includes('password should be at least')) return 'La contraseña debe tener al menos 6 caracteres';
+  if (m.includes('unable to validate email address') || m.includes('invalid email')) return 'El correo no es válido';
+  if (m.includes('for security purposes') || m.includes('rate limit') || m.includes('too many requests')) {
+    return 'Demasiados intentos seguidos. Espera unos minutos e inténtalo de nuevo.';
   }
-  return String(Math.abs(h));
-}
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
-
-// Trae todas las cuentas indexadas por email (se cachea en AuthContext).
-export async function fetchAccounts() {
-  const rows = await db.select('usuarios');
-  const map = {};
-  (rows || []).forEach((u) => { map[u.email] = u; });
-  return map;
+  return msg || 'Ocurrió un error. Inténtalo de nuevo.';
 }
 
-export async function register({ nombre, email, password }, accounts) {
+// ── Registro ──────────────────────────────────────────────────────────
+export async function register({ nombre, email, password }) {
   nombre = (nombre || '').trim();
   email = (email || '').trim().toLowerCase();
   if (!nombre || !email || !password) return { ok: false, error: 'Completa nombre, correo y contraseña' };
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'El correo no es válido' };
-  if (password.length < 4) return { ok: false, error: 'La contraseña debe tener al menos 4 caracteres' };
-  if (accounts[email]) return { ok: false, error: 'Ya existe una cuenta con ese correo' };
+  if (!EMAIL_RE.test(email)) return { ok: false, error: 'El correo no es válido' };
+  if (password.length < 6) return { ok: false, error: 'La contraseña debe tener al menos 6 caracteres' };
 
-  const acc = { id: uid(), email, nombre, pass: hash(password), creado: new Date().toISOString() };
-  try {
-    await db.insert('usuarios', acc);
-  } catch (e) {
-    console.error('[auth] register:', e);
-    return { ok: false, error: 'No se pudo crear la cuenta (error de conexión)' };
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { nombre }, emailRedirectTo: redirectTo() },
+  });
+  if (error) return { ok: false, error: traducir(error.message) };
+
+  // Correo ya registrado: Supabase devuelve un user con `identities` vacío.
+  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    return { ok: false, error: 'Ya existe una cuenta con ese correo. Inicia sesión.' };
   }
-  saveSession(email);
-  return { ok: true, user: acc, accounts: { ...accounts, [email]: acc } };
+
+  return {
+    ok: true,
+    user: data.user,
+    session: data.session,
+    // Si el proyecto exige confirmar el correo, no hay sesión todavía.
+    needsConfirmation: !data.session,
+  };
 }
 
-export function login({ email, password }, accounts) {
+// ── Login ─────────────────────────────────────────────────────────────
+export async function login({ email, password }) {
   email = (email || '').trim().toLowerCase();
-  const acc = accounts[email];
-  if (!acc || acc.pass !== hash(password || '')) {
-    return { ok: false, error: 'Correo o contraseña incorrectos' };
-  }
-  saveSession(email);
-  return { ok: true, user: acc };
+  if (!email || !password) return { ok: false, error: 'Escribe tu correo y contraseña' };
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) return { ok: false, error: traducir(error.message) };
+  return { ok: true, user: data.user, session: data.session };
 }
 
-export function logout() {
-  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+// ── Logout ────────────────────────────────────────────────────────────
+export async function logout() {
+  try { await supabase.auth.signOut(); }
+  catch (e) { console.error('[auth] logout:', e); }
+}
+
+// ── Recuperar contraseña (paso 1: enviar correo) ──────────────────────
+export async function requestPasswordReset(email) {
+  email = (email || '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) return { ok: false, error: 'Escribe un correo válido' };
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectTo() });
+  if (error) return { ok: false, error: traducir(error.message) };
+  return { ok: true };
+}
+
+// ── Recuperar contraseña (paso 2: fijar la nueva) ─────────────────────
+// Solo funciona con la sesión temporal que crea el enlace del correo.
+export async function updatePassword(nueva) {
+  if (!nueva || nueva.length < 6) return { ok: false, error: 'La contraseña debe tener al menos 6 caracteres' };
+  const { error } = await supabase.auth.updateUser({ password: nueva });
+  if (error) return { ok: false, error: traducir(error.message) };
+  return { ok: true };
+}
+
+// ── Perfiles ──────────────────────────────────────────────────────────
+
+// Perfil de un usuario por su id (auth.users.id).
+export async function fetchPerfil(id) {
+  if (!id) return null;
+  const { data, error } = await supabase
+    .from('perfiles')
+    .select('email, nombre, inv_access')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) { console.error('[auth] fetchPerfil:', error); return null; }
+  return data || null;
+}
+
+// Todas las cuentas, indexadas por email (lo consume el panel admin).
+export async function fetchAccounts() {
+  const { data, error } = await supabase
+    .from('perfiles')
+    .select('email, nombre, inv_access');
+  if (error) { console.error('[auth] fetchAccounts:', error); return {}; }
+  const map = {};
+  (data || []).forEach((p) => { if (p.email) map[p.email] = p; });
+  return map;
 }
 
 // Admin: concede o revoca el acceso al inventario de una cuenta.
 export async function setInvAccess(email, value) {
-  const res = await db.patch('usuarios', 'email', email, { inv_access: !!value });
-  return Array.isArray(res) ? res[0] : res;
-}
-
-function saveSession(email) {
-  try { localStorage.setItem(SESSION_KEY, JSON.stringify(email)); } catch (e) {}
-}
-
-// Restaura la sesión guardada validándola contra las cuentas cargadas.
-export function restoreSession(accounts) {
-  let email = null;
-  try { email = JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) {}
-  if (email && accounts[email]) {
-    return { email, nombre: accounts[email].nombre };
-  }
-  return null;
+  const { error } = await supabase
+    .from('perfiles')
+    .update({ inv_access: !!value })
+    .eq('email', (email || '').toLowerCase());
+  if (error) console.error('[auth] setInvAccess:', error);
 }

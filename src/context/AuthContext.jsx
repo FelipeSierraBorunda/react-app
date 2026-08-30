@@ -1,54 +1,108 @@
 /* =====================================================================
    AuthContext — Sesión de usuario + modo administrador
    ---------------------------------------------------------------------
-   Envuelve la app y expone: session, accounts, isAdmin y las acciones
-   login/register/logout/enterAdmin/exitAdmin. Carga las cuentas de
-   Supabase una vez al montar y restaura la sesión guardada.
+   Envuelve la app y expone: session, accounts, isAdmin, recovery y las
+   acciones login/register/logout/enterAdmin/exitAdmin + las de
+   recuperación de contraseña. La sesión la gestiona Supabase Auth; aquí
+   la traducimos a { email, nombre } (lo que consume el resto de la app)
+   combinando el usuario de Supabase con su fila en `perfiles`.
    ===================================================================== */
 
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import * as Auth from '../lib/auth.js';
 import { ADMIN_PASSWORD } from '../lib/constants.js';
+import { supabase } from '../lib/supabase.js';
 
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
+
+// ¿Abrimos la app desde el enlace de "recuperar contraseña"?
+function urlEsRecuperacion() {
+  try {
+    const h = window.location.hash || '';
+    const q = window.location.search || '';
+    return h.includes('type=recovery') || q.includes('type=recovery');
+  } catch (e) { return false; }
+}
 
 export function AuthProvider({ children }) {
   const [accounts, setAccounts] = useState({});
   const [session, setSession] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [ready, setReady] = useState(false);
+  const [recovery, setRecovery] = useState(urlEsRecuperacion);
+
+  // Usuario de Supabase + perfil  →  { email, nombre }
+  const buildSession = useCallback(async (user) => {
+    if (!user) return null;
+    const email = (user.email || '').toLowerCase();
+    let nombre = user.user_metadata?.nombre || '';
+    const perfil = await Auth.fetchPerfil(user.id);
+    if (perfil?.nombre) nombre = perfil.nombre;
+    return { email, nombre: nombre || email };
+  }, []);
+
+  const refreshAccounts = useCallback(async () => {
+    const accs = await Auth.fetchAccounts();
+    setAccounts(accs);
+    return accs;
+  }, []);
 
   useEffect(() => {
+    let alive = true;
+
     (async () => {
-      const accs = await Auth.fetchAccounts();
-      setAccounts(accs);
-      setSession(Auth.restoreSession(accs));
       try { setIsAdmin(localStorage.getItem('li_admin') === '1'); } catch (e) {}
+      const { data } = await supabase.auth.getSession();
+      const s = await buildSession(data.session?.user);
+      if (!alive) return;
+      setSession(s);
+      await refreshAccounts();
+      if (!alive) return;
       setReady(true);
     })();
-  }, []);
 
-  const login = useCallback((creds) => {
-    const res = Auth.login(creds, accounts);
-    if (res.ok) setSession({ email: res.user.email, nombre: res.user.nombre });
-    return res;
-  }, [accounts]);
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, sess) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
+      const s = await buildSession(sess?.user);
+      if (!alive) return;
+      setSession(s);
+      if (sess?.user) refreshAccounts();
+    });
 
-  const register = useCallback(async (data) => {
-    const res = await Auth.register(data, accounts);
+    return () => { alive = false; sub.subscription.unsubscribe(); };
+  }, [buildSession, refreshAccounts]);
+
+  const login = useCallback(async (creds) => {
+    const res = await Auth.login(creds);
     if (res.ok) {
-      setAccounts(res.accounts);
-      setSession({ email: res.user.email, nombre: res.user.nombre });
+      const s = await buildSession(res.user);
+      setSession(s);
+      await refreshAccounts();
     }
     return res;
-  }, [accounts]);
+  }, [buildSession, refreshAccounts]);
 
-  const logout = useCallback(() => {
-    Auth.logout();
+  const register = useCallback(async (data) => {
+    const res = await Auth.register(data);
+    if (res.ok && res.session && res.user) {
+      const s = await buildSession(res.user);
+      setSession(s);
+      await refreshAccounts();
+    }
+    return res;
+  }, [buildSession, refreshAccounts]);
+
+  const exitAdmin = useCallback(() => {
+    try { localStorage.removeItem('li_admin'); } catch (e) {}
+    setIsAdmin(false);
+  }, []);
+
+  const logout = useCallback(async () => {
+    await Auth.logout();
     setSession(null);
     exitAdmin();
-  }, []);
+  }, [exitAdmin]);
 
   const enterAdmin = useCallback((password) => {
     if (password !== ADMIN_PASSWORD) return { ok: false, error: 'Contraseña incorrecta' };
@@ -57,10 +111,19 @@ export function AuthProvider({ children }) {
     return { ok: true };
   }, []);
 
-  const exitAdmin = useCallback(() => {
-    try { localStorage.removeItem('li_admin'); } catch (e) {}
-    setIsAdmin(false);
-  }, []);
+  // ── Recuperación de contraseña ──────────────────────────────────────
+  const requestPasswordReset = useCallback((email) => Auth.requestPasswordReset(email), []);
+
+  const updatePassword = useCallback(async (nueva) => {
+    const res = await Auth.updatePassword(nueva);
+    if (res.ok) {
+      setRecovery(false);
+      await refreshAccounts();
+    }
+    return res;
+  }, [refreshAccounts]);
+
+  const clearRecovery = useCallback(() => setRecovery(false), []);
 
   // Admin: concede/revoca acceso al inventario y refresca el estado local.
   const setInvAccess = useCallback(async (email, value) => {
@@ -76,10 +139,11 @@ export function AuthProvider({ children }) {
   }, [isAdmin, session, accounts]);
 
   const value = {
-    accounts, session, isAdmin, ready,
+    accounts, session, isAdmin, ready, recovery,
     loggedIn: !!session,
     invAccess, setInvAccess,
     login, register, logout, enterAdmin, exitAdmin,
+    requestPasswordReset, updatePassword, clearRecovery,
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

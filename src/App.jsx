@@ -26,7 +26,7 @@ import PrestamosView from './views/PrestamosView.jsx';
 import AuditView from './views/AuditView.jsx';
 
 export default function App() {
-  const { ready, loggedIn, invAccess, isAdmin } = useAuth();
+  const { ready, loggedIn, invAccess, isAdmin, recovery } = useAuth();
   const { loading } = useInventory();
   const [view, setView] = useState('menu');
   const [authOpen, setAuthOpen] = useState(false);
@@ -39,6 +39,11 @@ export default function App() {
   const goEdit = (comp) => { setEditComp(comp); setView('manage'); };
   // Ir a agregar (sin edición)
   const goAdd = () => { setEditComp(null); setView('manage'); };
+
+  // El usuario abrió el enlace de "recuperar contraseña": pantalla dedicada.
+  if (recovery) {
+    return <ResetPasswordScreen />;
+  }
 
   if (!ready || loading) {
     return <Center>Cargando inventario…</Center>;
@@ -95,6 +100,78 @@ function GameLoginGate({ onAuth, go }) {
       <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
         <button onClick={onAuth} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: T.primary, color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: T.font }}>Iniciar sesión</button>
         <button onClick={() => go('menu')} style={{ padding: '10px 20px', borderRadius: 8, border: `1px solid ${T.border}`, background: '#fff', color: T.inkSoft, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: T.font }}>← Menú</button>
+      </div>
+    </div>
+  );
+}
+
+// Pantalla para fijar la nueva contraseña tras abrir el enlace del correo.
+function ResetPasswordScreen() {
+  const { updatePassword, clearRecovery } = useAuth();
+  const [p1, setP1] = useState('');
+  const [p2, setP2] = useState('');
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setError('');
+    if (p1.length < 6) return setError('La contraseña debe tener al menos 6 caracteres');
+    if (p1 !== p2) return setError('Las contraseñas no coinciden');
+    setBusy(true);
+    const res = await updatePassword(p1);
+    setBusy(false);
+    if (!res.ok) return setError(res.error);
+    setDone(true);
+  }
+
+  const box = {
+    maxWidth: 400, width: '100%', background: '#fff', border: `1px solid ${T.border}`,
+    borderRadius: 16, padding: 32, textAlign: 'center', fontFamily: T.font,
+  };
+  const input = {
+    width: '100%', padding: '10px 12px', borderRadius: 8, border: `1px solid ${T.border}`,
+    fontSize: 14, fontFamily: T.font, outline: 'none', marginBottom: 12,
+  };
+  const primary = {
+    width: '100%', padding: '11px 18px', borderRadius: 8, border: 'none', background: T.primary,
+    color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: T.font,
+  };
+
+  return (
+    <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', background: T.bg, padding: 20 }}>
+      <div style={box}>
+        <div style={{ width: 52, height: 52, borderRadius: 13, background: '#EFF6FF', color: '#2563EB', display: 'grid', placeItems: 'center', margin: '0 auto 16px', fontSize: 24 }}>🔑</div>
+        {done ? (
+          <>
+            <div style={{ fontSize: 18, fontWeight: 700, color: T.ink, marginBottom: 8 }}>Contraseña actualizada</div>
+            <p style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.55, margin: '0 0 18px' }}>
+              Ya puedes usar tu nueva contraseña.
+            </p>
+            <button onClick={clearRecovery} style={primary}>Entrar a la app</button>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 18, fontWeight: 700, color: T.ink, marginBottom: 8 }}>Nueva contraseña</div>
+            <p style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.55, margin: '0 0 18px' }}>
+              Escribe la contraseña que usarás de ahora en adelante.
+            </p>
+            <input style={input} type="password" placeholder="Nueva contraseña" value={p1}
+              onChange={(e) => setP1(e.target.value)} />
+            <input style={input} type="password" placeholder="Repite la contraseña" value={p2}
+              onChange={(e) => setP2(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submit()} />
+            {error && <div style={{ color: T.danger, fontSize: 13, marginBottom: 12 }}>{error}</div>}
+            <button onClick={submit} disabled={busy} style={primary}>
+              {busy ? 'Guardando…' : 'Guardar contraseña'}
+            </button>
+            <div style={{ marginTop: 12 }}>
+              <button onClick={clearRecovery} style={{ background: 'none', border: 'none', color: T.muted, cursor: 'pointer', fontSize: 12.5 }}>
+                Cancelar
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

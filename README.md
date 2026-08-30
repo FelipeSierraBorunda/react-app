@@ -46,9 +46,29 @@ npm run preview           # previsualiza el build local
 
 ## 3. Base de datos
 
-El esquema está en `schema.sql` (mismas tablas que el prototipo:
-`componentes`, `usuarios`, `transacciones`, `changelog`). Si tu proyecto de
-Supabase ya las tiene, **no** lo vuelvas a correr (borra los datos).
+El esquema está repartido en varios `*.sql` (todos seguros de re-ejecutar
+salvo `schema.sql`, que tiene `DROP TABLE` al inicio):
+
+- `schema.sql` — tablas base (`componentes`, `transacciones`, `changelog`, …).
+  ⚠️ **No lo vuelvas a correr** en la base de producción: borra datos.
+- `lab-schema.sql`, `mejoras-schema.sql`, `mejoras2/3-schema.sql` — módulos.
+- `auth-schema.sql` — **autenticación** (Supabase Auth + tabla `perfiles`).
+
+### Autenticación (desde 2026-08)
+
+El login casero (tabla `usuarios` con contraseña hasheada en el navegador)
+se reemplazó por **Supabase Auth**. Cada usuario tiene ahora:
+
+- una fila en `auth.users` (Supabase hashea la contraseña en el servidor),
+- una fila en `public.perfiles` (`id` = `auth.users.id`, `email`, `nombre`,
+  `inv_access`), creada automáticamente por el trigger `handle_new_user`.
+
+La tabla vieja `usuarios` **no se borró**: quedó como respaldo (la app ya
+no la lee). Los 22 usuarios existentes se migraron con contraseña aleatoria
+→ cada uno debe entrar una vez con **"¿Olvidaste tu contraseña?"** para
+fijar la suya.
+
+Config necesaria en el panel de Supabase → ver `docs/supabase-auth-setup.md`.
 
 ---
 
@@ -60,13 +80,13 @@ src/
     supabase.js           cliente REST (lee credenciales de .env)
     constants.js          contenedores, tipos, colores, helpers
     inventory.js          CRUD de componentes + registro de actividad
-    auth.js               registro / login / sesión
+    auth.js               registro / login / recuperar contraseña (Supabase Auth)
   context/              ← estado global vía React Context
-    AuthContext.jsx       sesión + modo admin
+    AuthContext.jsx       sesión (Supabase) + perfil + modo admin
     InventoryContext.jsx  componentes, transacciones, changelog
   components/           ← piezas de UI reutilizables
     Nav.jsx               barra superior + pestañas (según rol)
-    AuthModal.jsx         login / registro
+    AuthModal.jsx         login / registro / recuperar contraseña
     Placeholder.jsx       marcador de "por migrar"
   views/                ← una pantalla por archivo
     TableView.jsx         ✅ MIGRADA — inventario con filtros/orden/CRUD
@@ -98,9 +118,13 @@ qué falta traer del prototipo.
 
 - **Roles en BD**: hoy el admin se valida con una contraseña fija
   (`ADMIN_PASSWORD` en `constants.js`). Pásalo a una columna `rol` en
-  `usuarios` y valida contra Supabase.
-- **Supabase Auth**: reemplaza el hash casero de `auth.js` por
-  `supabase.auth.signUp / signInWithPassword` (hashing del lado del servidor).
+  `perfiles` y valida contra Supabase.
+- ~~**Supabase Auth**~~ ✅ hecho (2026-08). Ver `auth-schema.sql`.
+- **RLS real**: hoy `perfiles` usa `public_all` como el resto de tablas.
+  Se puede cerrar a `auth.uid() = id` (como en ProyectoExani) si el panel
+  admin pasa a usar una Edge Function con service_role.
+- **SMTP propio**: el correo integrado de Supabase está limitado a ~2-3/hora.
+  Para muchos usuarios, configurar Resend/SendGrid en Supabase → Auth → SMTP.
 - **URLs reales**: cambia el switch de `App.jsx` por `react-router-dom`.
 - **Realtime**: suscríbete a cambios de `componentes` para multiusuario en vivo.
 ```

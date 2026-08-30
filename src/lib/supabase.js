@@ -1,9 +1,21 @@
 /* =====================================================================
-   supabase.js — Cliente REST genérico para Supabase (PostgREST)
+   supabase.js — Acceso a Supabase
    ---------------------------------------------------------------------
-   Mismo enfoque que el prototipo: fetch directo, sin librerías externas.
-   Las credenciales ahora vienen de variables de entorno (.env).
+   Dos cosas conviven aquí:
+
+   1. `supabase`  — cliente oficial @supabase/supabase-js. Se usa SOLO
+      para autenticación (registro, login, recuperar contraseña) y para
+      leer/escribir la tabla `perfiles`. Ver src/lib/auth.js.
+
+   2. `db`        — helper REST mínimo (fetch directo a PostgREST) que
+      usa el resto de la app para componentes, mesas, juego, etc. Se
+      mantiene tal cual: funciona con la clave publishable y las
+      políticas RLS `public_all`.
+
+   Las credenciales vienen de variables de entorno (.env).
    ===================================================================== */
+
+import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
@@ -11,6 +23,16 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.warn('[supabase] Faltan VITE_SUPABASE_URL / VITE_SUPABASE_KEY en .env');
 }
+
+// Cliente oficial: gestiona la sesión (JWT) en localStorage, la renueva
+// sola y detecta el enlace de "recuperar contraseña" al abrir la app.
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
 const baseHeaders = {
   'Content-Type': 'application/json',
