@@ -187,6 +187,31 @@ export async function deleteTipo(nombre) {
   return db.del('tipos', 'nombre', nombre);
 }
 
+// ---------- contenedores (cajas) personalizados ----------
+// Viven en la tabla "contenedores" de Supabase (compartidos entre todas
+// las cuentas). Antes solo se guardaban en localStorage, por eso no
+// aparecían para las demás cuentas. Si la tabla aún no existe,
+// fetchContenedores devuelve [] sin romper (ejecuta mejoras4-schema.sql).
+
+export async function fetchContenedores() {
+  return db.select('contenedores', { order: 'creado.asc' });
+}
+
+export async function createContenedor(box) {
+  const row = {
+    id: box.id,
+    name: box.name,
+    type: box.type || 'caja_libre',
+    compartments: box.compartments ?? null,
+    image: box.image || null,
+  };
+  return db.insert('contenedores', row);
+}
+
+export async function deleteContenedor(id) {
+  return db.del('contenedores', 'id', id);
+}
+
 // ---------- ajustes (clave/valor compartido en Supabase) ----------
 // Guarda configuraciones compartidas entre usuarios. Hoy: 'cont_mesa'
 // (mapa contenedor → mesa/módulo). Si la tabla no existe, devuelve null.

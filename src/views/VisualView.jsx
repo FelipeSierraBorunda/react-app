@@ -12,7 +12,7 @@ import NewBoxModal from '../components/NewBoxModal.jsx';
 import DrawerModal from '../components/DrawerModal.jsx';
 
 export default function VisualView({ go, goEdit }) {
-  const { comps, customBoxes, addCustomBox, use, remove, tcMap, contMesa, setContenedorMesa } = useInventory();
+  const { comps, customBoxes, addCustomBox, removeCustomBox, use, remove, tcMap, contMesa, setContenedorMesa } = useInventory();
   const { loggedIn, isAdmin } = useAuth();
   const { mesas } = useLab();
   const [active, setActive] = useState(CONTAINERS[0].id);
@@ -21,6 +21,17 @@ export default function VisualView({ go, goEdit }) {
 
   const allBoxes = useMemo(() => [...CONTAINERS, ...customBoxes], [customBoxes]);
   const ct = allBoxes.find((c) => c.id === active);
+  const isCustom = customBoxes.some((c) => c.id === active);
+
+  async function handleDeleteBox() {
+    const cnt = comps.filter((x) => x.contenedor === active).length;
+    const msg = cnt
+      ? `Esta caja tiene ${cnt} componente(s) asignados. Se eliminará la caja pero los componentes seguirán en la base con este contenedor. ¿Continuar?`
+      : '¿Eliminar esta caja personalizada?';
+    if (!window.confirm(msg)) return;
+    await removeCustomBox(active);
+    setActive(CONTAINERS[0].id);
+  }
   const isG = ct?.type === 'gabinete';
   const isC12 = ct?.type === 'caja12';
   const isTruper = ct?.type === 'truper';
@@ -111,7 +122,12 @@ export default function VisualView({ go, goEdit }) {
 
       {/* Contenedor */}
       <div style={{ ...card, padding: 24 }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700 }}>{ct.name}</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700 }}>{ct.name}</h2>
+          {isCustom && isAdmin && (
+            <button onClick={handleDeleteBox} style={{ padding: '5px 12px', borderRadius: 7, border: `1px solid ${T.danger}`, background: '#fff', color: T.danger, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: T.font, flexShrink: 0 }}>Eliminar caja</button>
+          )}
+        </div>
         <p style={{ margin: '0 0 14px', fontSize: 13, color: '#64748B' }}>
           {(isG || isC12 || isTruper) ? 'Haz clic en un cajón para ver su contenido · los cajones coloreados tienen componentes' : 'Esta caja no tiene compartimentos · consulta su contenido abajo'}
         </p>

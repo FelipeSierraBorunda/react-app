@@ -46,11 +46,22 @@ export function InventoryProvider({ children }) {
       setPrestamos(Array.isArray(pr) ? pr : []);
       setAuditoria(Array.isArray(au) ? au : []);
       
-      // Restaurar cajas personalizadas desde localStorage
+      // Cajas personalizadas: ahora viven en Supabase (compartidas entre
+      // cuentas). Si la tabla aún tiene menos filas que el localStorage de
+      // este navegador, subimos las que falten (migración única del modelo
+      // viejo, que solo guardaba en localStorage).
+      let boxes = await Inv.fetchContenedores();
+      boxes = Array.isArray(boxes) ? boxes : [];
       try {
-        const saved = localStorage.getItem('li_custom_boxes');
-        if (saved) setCustomBoxes(JSON.parse(saved));
+        const saved = JSON.parse(localStorage.getItem('li_custom_boxes') || '[]');
+        const faltan = saved.filter((b) => b && b.id && !boxes.some((x) => x.id === b.id));
+        for (const b of faltan) {
+          try { await Inv.createContenedor(b); boxes.push(b); } catch (e) {}
+        }
+        // Ya migradas: el localStorage deja de ser la fuente de verdad.
+        if (saved.length) localStorage.removeItem('li_custom_boxes');
       } catch (e) {}
+      setCustomBoxes(boxes);
 
       // Mapa contenedor → mesa/módulo (compartido en Supabase, fallback local).
       let cm = await Inv.fetchAjuste('cont_mesa');
@@ -132,16 +143,22 @@ export function InventoryProvider({ children }) {
     return 'prestado';
   }, []);
 
-  // Crear caja personalizada (localStorage)
-  const addCustomBox = useCallback((data) => {
+  // Crear caja personalizada (compartida en Supabase).
+  const addCustomBox = useCallback(async (data) => {
     const box = { id: 'U' + uid(), ...data };
-    setCustomBoxes((prev) => {
-      const next = [...prev, box];
-      try { localStorage.setItem('li_custom_boxes', JSON.stringify(next)); } catch (e) {}
-      return next;
-    });
+    await Inv.createContenedor(box);
+    setCustomBoxes((prev) => [...prev, box]);
+    audit({ modulo: 'inventario', accion: 'agregar', objeto: box.name, detalle: 'Nueva caja / contenedor' });
     return box;
-  }, []);
+  }, [audit]);
+
+  // Eliminar caja personalizada (no toca los componentes que tuviera dentro).
+  const removeCustomBox = useCallback(async (id) => {
+    const box = customBoxes.find((b) => b.id === id);
+    await Inv.deleteContenedor(id);
+    setCustomBoxes((prev) => prev.filter((b) => b.id !== id));
+    if (box) audit({ modulo: 'inventario', accion: 'eliminar', objeto: box.name, detalle: 'Caja / contenedor eliminado' });
+  }, [customBoxes, audit]);
 
   // Importación en masa desde JSON
   const importMany = useCallback(async (items) => {
@@ -221,7 +238,7 @@ export function InventoryProvider({ children }) {
     });
   }, []);
 
-  const value = { comps, usage, changelog, loading, customBoxes, customTypes, tipos, tcMap, add, edit, remove, use, addCustomBox, addTipo, removeTipo, importMany,
+  const value = { comps, usage, changelog, loading, customBoxes, customTypes, tipos, tcMap, add, edit, remove, use, addCustomBox, removeCustomBox, addTipo, removeTipo, importMany,
     prestamos, auditoria, audit, lend, returnLoan, loanState,
     allContainers, containerById, esSuelto, generalLocOf, containersInMesa, looseInMesa, contMesa, setContenedorMesa };
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
