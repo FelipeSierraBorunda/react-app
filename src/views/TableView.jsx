@@ -16,11 +16,11 @@ import { T, card } from '../theme.js';
 import ComponentDetailModal from '../components/ComponentDetailModal.jsx';
 
 export default function TableView({ go, goEdit, requireAuth }) {
-  const { comps, use, remove, edit, tipos, tcMap, generalLocOf, esSuelto, changelog, auditoria } = useInventory();
+  const { comps, use, remove, edit, tipos, tcMap, generalLocOf, esSuelto, changelog, auditoria, proyectos } = useInventory();
   const { loggedIn } = useAuth();
   const { mesas } = useLab();
   const mesaNombre = (id) => { const m = mesas.find((x) => x.id === id); return m ? m.nombre : null; };
-  const [filters, setFilters] = useState({ tipo: '', cont: '', q: '' });
+  const [filters, setFilters] = useState({ tipo: '', cont: '', q: '', proyecto: '' });
   const [sort, setSort] = useState({ col: 'codigoInterno', dir: 'asc' });
   const [recientes, setRecientes] = useState(false);
   const [detail, setDetail] = useState(null);
@@ -43,6 +43,7 @@ export default function TableView({ go, goEdit, requireAuth }) {
     let r = comps.filter((c) => {
       if (filters.tipo && c.tipo !== filters.tipo) return false;
       if (filters.cont && c.contenedor !== filters.cont) return false;
+      if (filters.proyecto && !(Array.isArray(c.proyectos) && c.proyectos.includes(filters.proyecto))) return false;
       if (recientes && !((addedAt[c.codigoInterno] || 0) >= limite)) return false;
       if (filters.q) {
         const q = filters.q.toLowerCase();
@@ -91,6 +92,12 @@ export default function TableView({ go, goEdit, requireAuth }) {
           <option value="">Todos los contenedores</option>
           {CONTAINERS.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+        {proyectos.length > 0 && (
+          <select className="resp-filter-input" value={filters.proyecto} onChange={set('proyecto')} style={input}>
+            <option value="">Todos los proyectos</option>
+            {proyectos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+        )}
         <button
           onClick={() => setRecientes((v) => !v)}
           style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, fontFamily: T.font, cursor: 'pointer', border: `1px solid ${recientes ? T.primary : T.border}`, background: recientes ? T.primarySoft : '#fff', color: recientes ? T.primary : '#475569' }}

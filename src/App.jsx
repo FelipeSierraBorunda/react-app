@@ -24,6 +24,8 @@ import LabStatsView from './views/LabStatsView.jsx';
 import GameView from './views/GameView.jsx';
 import PrestamosView from './views/PrestamosView.jsx';
 import AuditView from './views/AuditView.jsx';
+import ComprasView from './views/ComprasView.jsx';
+import ProjectsManager from './components/ProjectsManager.jsx';
 
 export default function App() {
   const { ready, loggedIn, invAccess, isAdmin, recovery } = useAuth();
@@ -31,14 +33,17 @@ export default function App() {
   const [view, setView] = useState('menu');
   const [authOpen, setAuthOpen] = useState(false);
   const [editComp, setEditComp] = useState(null); // componente en edición
+  const [addDraft, setAddDraft] = useState(null); // borrador prellenado (p. ej. desde compras)
 
   // Exige sesión antes de una acción; si no hay, abre el modal de login.
   const requireAuth = (fn) => (loggedIn ? fn() : setAuthOpen(true));
 
   // Ir a editar un componente concreto
-  const goEdit = (comp) => { setEditComp(comp); setView('manage'); };
+  const goEdit = (comp) => { setEditComp(comp); setAddDraft(null); setView('manage'); };
   // Ir a agregar (sin edición)
-  const goAdd = () => { setEditComp(null); setView('manage'); };
+  const goAdd = () => { setEditComp(null); setAddDraft(null); setView('manage'); };
+  // Ir a agregar con datos prellenados (desde un pedido recibido en Compras)
+  const goAddDraft = (d) => { setEditComp(null); setAddDraft(d); setView('manage'); };
 
   // El usuario abrió el enlace de "recuperar contraseña": pantalla dedicada.
   if (recovery) {
@@ -72,14 +77,16 @@ export default function App() {
     stats: invGate(<StatsView />),
     prestamos: invGate(<PrestamosView go={setView} />),
     auditoria: invGate(<AuditView />),
-    manage: invGate(<ManageView go={setView} editComp={editComp} clearEdit={() => setEditComp(null)} />),
+    compras: invGate(<ComprasView go={setView} goAddDraft={goAddDraft} />),
+    proyectos: invGate(<ProjectsManager />),
+    manage: invGate(<ManageView go={setView} editComp={editComp} clearEdit={() => setEditComp(null)} draft={addDraft} clearDraft={() => setAddDraft(null)} />),
     account: loggedIn ? <AccountView go={setView} /> : <Center>Debes iniciar sesión</Center>,
     admin: (loggedIn && isAdmin) ? <AdminPanel /> : <Center>Acceso denegado</Center>,
   };
 
   return (
     <div style={{ minHeight: '100vh', background: T.bg }}>
-      <Nav view={view} setView={(v) => { if (v === 'manage') setEditComp(null); setView(v); }} requireAuth={requireAuth} onAuth={() => setAuthOpen(true)} />
+      <Nav view={view} setView={(v) => { if (v === 'manage') setEditComp(null); if (v !== 'manage') setAddDraft(null); setView(v); }} requireAuth={requireAuth} onAuth={() => setAuthOpen(true)} />
       <main className="resp-main" style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px 64px' }}>
         {views[view] || views.visual}
       </main>

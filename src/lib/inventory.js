@@ -39,6 +39,8 @@ export async function createComponent(data, comps) {
     cajon: parseInt(data.cajon, 10) || 1,
     posicion: parseInt(data.posicion, 10) || 1,
     cantidad: parseInt(data.cantidad, 10) || 0,
+    datasheet: data.datasheet || '',
+    proyectos: Array.isArray(data.proyectos) ? data.proyectos : [],
   };
   return db.insert('componentes', row);
 }
@@ -67,6 +69,8 @@ export async function importComponents(items) {
     espacioOcupado: c.espacioOcupado || 'Bajo',
     notas: c.notas || '',
     mesa: c.mesa || '',
+    datasheet: c.datasheet || '',
+    proyectos: Array.isArray(c.proyectos) ? c.proyectos : [],
   }));
   // Subir en lotes de 200 para no exceder límites de la API
   const out = [];
@@ -210,6 +214,70 @@ export async function createContenedor(box) {
 
 export async function deleteContenedor(id) {
   return db.del('contenedores', 'id', id);
+}
+
+// ---------- proyectos (rubro de un componente) ----------
+// Catálogo compartido en la tabla "proyectos". Un componente guarda en
+// componentes.proyectos (JSONB) un arreglo con los ids a los que pertenece.
+// Si la tabla no existe todavía, fetchProyectos devuelve [] sin romper
+// (ejecuta mejoras5-schema.sql).
+
+export async function fetchProyectos() {
+  return db.select('proyectos', { order: 'creado.asc' });
+}
+
+export async function createProyecto({ id, nombre, color, descripcion }) {
+  const row = { id: id || 'PRJ' + uid(), nombre, color: color || '#2563EB', descripcion: descripcion || '' };
+  return db.insert('proyectos', row);
+}
+
+export async function updateProyecto(id, patch) {
+  const res = await db.patch('proyectos', 'id', id, patch);
+  return Array.isArray(res) ? res[0] : res;
+}
+
+export async function deleteProyecto(id) {
+  return db.del('proyectos', 'id', id);
+}
+
+// ---------- compras (lista de compras / pedidos) ----------
+// Flujo: lista → pedido → parcial|recibido → archivado (ya pasó a inventario).
+// Tabla "compras". Si no existe, fetchCompras devuelve [] sin romper.
+
+export async function fetchCompras() {
+  return db.select('compras', { order: 'creado.desc', limit: 500 });
+}
+
+export async function createCompra(data) {
+  const row = {
+    id: 'CMP' + uid(),
+    descripcion: data.descripcion || '',
+    tipo: data.tipo || '',
+    componente: data.componente || '',
+    codigoFabricante: data.codigoFabricante || '',
+    proyecto: data.proyecto || '',
+    cantidad_sol: parseInt(data.cantidad_sol, 10) || 1,
+    cantidad_rec: 0,
+    proveedor: data.proveedor || '',
+    link: data.link || '',
+    datasheet: data.datasheet || '',
+    precio_unit: parseFloat(data.precio_unit) || 0,
+    moneda: data.moneda || 'MXN',
+    estado: 'lista',
+    notas: data.notas || '',
+    solicitado_por: data.solicitado_por || '',
+    solicitado_email: data.solicitado_email || '',
+  };
+  return db.insert('compras', row);
+}
+
+export async function updateCompra(id, patch) {
+  const res = await db.patch('compras', 'id', id, patch);
+  return Array.isArray(res) ? res[0] : res;
+}
+
+export async function deleteCompra(id) {
+  return db.del('compras', 'id', id);
 }
 
 // ---------- ajustes (clave/valor compartido en Supabase) ----------

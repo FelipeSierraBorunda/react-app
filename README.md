@@ -52,6 +52,9 @@ salvo `schema.sql`, que tiene `DROP TABLE` al inicio):
 - `schema.sql` — tablas base (`componentes`, `transacciones`, `changelog`, …).
   ⚠️ **No lo vuelvas a correr** en la base de producción: borra datos.
 - `lab-schema.sql`, `mejoras-schema.sql`, `mejoras2/3-schema.sql` — módulos.
+- `mejoras4-schema.sql` — cajas/contenedores personalizados compartidos (`contenedores`).
+- `mejoras5-schema.sql` — proyectos (`proyectos` + `componentes.proyectos`),
+  planificador de compras (`compras`) y `componentes.datasheet`.
 - `auth-schema.sql` — **autenticación** (Supabase Auth + tabla `perfiles`).
 
 ### Autenticación (desde 2026-08)

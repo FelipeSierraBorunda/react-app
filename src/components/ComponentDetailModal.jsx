@@ -9,7 +9,7 @@ import { useLab } from '../context/LabContext.jsx';
 import { Overlay } from './AuthModal.jsx';
 
 export default function ComponentDetailModal({ component, onClose, onUse, onDelete, onEdit }) {
-  const { tcMap, esSuelto, generalLocOf, containerById } = useInventory();
+  const { tcMap, esSuelto, generalLocOf, containerById, proyectos } = useInventory();
   const { mesas } = useLab();
   const [useQty, setUseQty] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -68,6 +68,29 @@ export default function ComponentDetailModal({ component, onClose, onUse, onDele
         {component.notas && (
           <div style={{ marginBottom: 20, padding: 12, background: '#F8FAFC', borderRadius: 8, fontSize: 13, color: T.ink }}>
             <strong>Notas:</strong> {component.notas}
+          </div>
+        )}
+
+        {Array.isArray(component.proyectos) && component.proyectos.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 5 }}>Proyectos</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {component.proyectos.map((id) => {
+                const p = proyectos.find((x) => x.id === id);
+                if (!p) return null;
+                return (
+                  <span key={id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 20, fontSize: 12, fontWeight: 600, color: p.color || '#64748B', background: (p.color || '#64748B') + '1a' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 3, background: p.color || '#64748B' }} />{p.nombre}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {component.datasheet && (
+          <div style={{ marginBottom: 16, fontSize: 13 }}>
+            <a href={component.datasheet} target="_blank" rel="noopener noreferrer" style={{ color: T.primary, fontWeight: 600 }}>📄 Ver datasheet</a>
           </div>
         )}
 

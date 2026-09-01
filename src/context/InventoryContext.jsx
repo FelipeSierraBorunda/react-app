@@ -27,17 +27,21 @@ export function InventoryProvider({ children }) {
   const [contMesa, setContMesa] = useState({}); // { contenedorId: mesaId }
   const [prestamos, setPrestamos] = useState([]);
   const [auditoria, setAuditoria] = useState([]);
+  const [proyectos, setProyectos] = useState([]);
+  const [compras, setCompras] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [c, u, ch, tp, pr, au] = await Promise.all([
+      const [c, u, ch, tp, pr, au, prj, cmp] = await Promise.all([
         Inv.fetchComponents(),
         Inv.fetchUsage(),
         Inv.fetchChangelog(),
         Inv.fetchTipos(),
         Inv.fetchPrestamos(),
         Inv.fetchAuditoria(),
+        Inv.fetchProyectos(),
+        Inv.fetchCompras(),
       ]);
       setComps(Array.isArray(c) ? c : []);
       setUsage(u || []);
@@ -45,6 +49,8 @@ export function InventoryProvider({ children }) {
       setCustomTypes(Array.isArray(tp) ? tp : []);
       setPrestamos(Array.isArray(pr) ? pr : []);
       setAuditoria(Array.isArray(au) ? au : []);
+      setProyectos(Array.isArray(prj) ? prj : []);
+      setCompras(Array.isArray(cmp) ? cmp : []);
       
       // Cajas personalizadas: ahora viven en Supabase (compartidas entre
       // cuentas). Si la tabla aún tiene menos filas que el localStorage de
@@ -201,6 +207,71 @@ export function InventoryProvider({ children }) {
     setCustomTypes((prev) => prev.filter((t) => t.nombre !== nombre));
   }, []);
 
+  // ---------- proyectos (rubro compartido) ----------
+  const proyectoById = useCallback((id) => proyectos.find((p) => p.id === id) || null, [proyectos]);
+
+  const addProyecto = useCallback(async ({ nombre, color, descripcion }) => {
+    const row = await Inv.createProyecto({ nombre, color, descripcion });
+    const p = Array.isArray(row) ? row[0] : row;
+    setProyectos((prev) => [...prev, p]);
+    audit({ modulo: 'inventario', accion: 'agregar', objeto: nombre, detalle: 'Nuevo proyecto' });
+    return p;
+  }, [audit]);
+
+  const editProyecto = useCallback(async (id, patch) => {
+    await Inv.updateProyecto(id, patch);
+    setProyectos((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }, []);
+
+  const removeProyecto = useCallback(async (id) => {
+    const p = proyectos.find((x) => x.id === id);
+    await Inv.deleteProyecto(id);
+    setProyectos((prev) => prev.filter((x) => x.id !== id));
+    if (p) audit({ modulo: 'inventario', accion: 'eliminar', objeto: p.nombre, detalle: 'Proyecto eliminado' });
+  }, [proyectos, audit]);
+
+  // ---------- compras (lista de compras / pedidos) ----------
+  const addCompra = useCallback(async (data) => {
+    const row = await Inv.createCompra({ ...data, solicitado_por: session?.nombre || '', solicitado_email: session?.email || '' });
+    const c = Array.isArray(row) ? row[0] : row;
+    setCompras((prev) => [c, ...prev]);
+    audit({ modulo: 'compras', accion: 'agregar', objeto: c.descripcion, detalle: `Solicitar ${c.cantidad_sol}` });
+    return c;
+  }, [session, audit]);
+
+  const updateCompra = useCallback(async (id, patch) => {
+    await Inv.updateCompra(id, patch);
+    setCompras((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  }, []);
+
+  const removeCompra = useCallback(async (id) => {
+    await Inv.deleteCompra(id);
+    setCompras((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
+  // lista → pedido
+  const marcarPedido = useCallback(async (id) => {
+    const patch = { estado: 'pedido', pedido_en: new Date().toISOString() };
+    await updateCompra(id, patch);
+    const c = compras.find((x) => x.id === id);
+    audit({ modulo: 'compras', accion: 'modificar', objeto: c?.descripcion || id, detalle: 'Marcado como pedido' });
+  }, [compras, updateCompra, audit]);
+
+  // pedido → parcial | recibido (acumula lo que llegó)
+  const registrarRecepcion = useCallback(async (id, recibidoAhora) => {
+    const c = compras.find((x) => x.id === id);
+    if (!c) return;
+    const total = Math.max(0, (parseInt(c.cantidad_rec, 10) || 0) + (parseInt(recibidoAhora, 10) || 0));
+    const estado = total >= (parseInt(c.cantidad_sol, 10) || 0) ? 'recibido' : 'parcial';
+    const patch = { cantidad_rec: total, estado, recibido_en: new Date().toISOString() };
+    await updateCompra(id, patch);
+    audit({ modulo: 'compras', accion: 'modificar', objeto: c.descripcion, detalle: `Recibidos ${total}/${c.cantidad_sol}` });
+  }, [compras, updateCompra, audit]);
+
+  const archivarCompra = useCallback(async (id) => {
+    await updateCompra(id, { estado: 'archivado' });
+  }, [updateCompra]);
+
   // ---------- ubicación (almacenamiento jerárquico) ----------
   // Catálogo completo de contenedores (base + personalizados), cada uno
   // con la mesa/módulo donde está físicamente (ubicación general).
@@ -240,6 +311,8 @@ export function InventoryProvider({ children }) {
 
   const value = { comps, usage, changelog, loading, customBoxes, customTypes, tipos, tcMap, add, edit, remove, use, addCustomBox, removeCustomBox, addTipo, removeTipo, importMany,
     prestamos, auditoria, audit, lend, returnLoan, loanState,
+    proyectos, proyectoById, addProyecto, editProyecto, removeProyecto,
+    compras, addCompra, updateCompra, removeCompra, marcarPedido, registrarRecepcion, archivarCompra,
     allContainers, containerById, esSuelto, generalLocOf, containersInMesa, looseInMesa, contMesa, setContenedorMesa };
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
 }

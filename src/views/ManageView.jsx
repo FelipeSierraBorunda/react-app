@@ -17,10 +17,11 @@ import { T } from '../theme.js';
 const EMPTY = {
   contenedor: 'G1', cajon: 1, posicion: 1, tipo: 'Resistencia',
   codigoFabricante: '', codigoInterno: '', descripcion: '', cantidad: 0, espacioOcupado: 'Bajo', notas: '', mesa: '', prestable: false,
+  datasheet: '', proyectos: [],
 };
 
-export default function ManageView({ go, editComp, clearEdit }) {
-  const { comps, allContainers, tipos, add, edit } = useInventory();
+export default function ManageView({ go, editComp, clearEdit, draft, clearDraft }) {
+  const { comps, allContainers, tipos, add, edit, proyectos, archivarCompra } = useInventory();
   const { mesas, ensureLoaded } = useLab();
   const [form, setForm] = useState(EMPTY);
   const [ubic, setUbic] = useState('contenedor'); // contenedor | suelto
@@ -28,19 +29,29 @@ export default function ManageView({ go, editComp, clearEdit }) {
   const [busy, setBusy] = useState(false);
 
   const isEditing = !!editComp;
+  const fromCompraId = !editComp && draft && draft.__compraId;
 
   useEffect(() => { ensureLoaded(); }, [ensureLoaded]);
 
-  // Precargar datos al entrar en modo edición
+  // Precargar datos al entrar en modo edición o desde un pedido recibido.
   useEffect(() => {
     if (editComp) {
       setForm({ ...EMPTY, ...editComp });
       setUbic(editComp.contenedor && editComp.contenedor !== 'SUELTO' ? 'contenedor' : 'suelto');
+    } else if (draft) {
+      const { __compraId, ...rest } = draft;
+      setForm({ ...EMPTY, ...rest, proyectos: Array.isArray(rest.proyectos) ? rest.proyectos : [] });
+      setUbic('contenedor');
     } else {
       setForm(EMPTY);
       setUbic('contenedor');
     }
-  }, [editComp]);
+  }, [editComp, draft]);
+
+  const toggleProyecto = (id) => setForm((f) => {
+    const cur = Array.isArray(f.proyectos) ? f.proyectos : [];
+    return { ...f, proyectos: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] };
+  });
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -71,6 +82,7 @@ export default function ManageView({ go, editComp, clearEdit }) {
       tipo: form.tipo, codigoFabricante: form.codigoFabricante, descripcion: form.descripcion,
       cantidad: parseInt(form.cantidad, 10) || 0, espacioOcupado: form.espacioOcupado, notas: form.notas,
       codigoInterno: code, posicion: parseInt(form.posicion, 10) || 1, prestable: !!form.prestable,
+      datasheet: (form.datasheet || '').trim(), proyectos: Array.isArray(form.proyectos) ? form.proyectos : [],
     };
     const payload = ubic === 'suelto'
       ? { ...base, contenedor: '', cajon: 1, mesa: form.mesa }
@@ -83,8 +95,11 @@ export default function ManageView({ go, editComp, clearEdit }) {
         go && go('table');
       } else {
         await add(payload);
+        if (fromCompraId) { try { await archivarCompra(fromCompraId); } catch (e) {} }
         setForm(EMPTY); setUbic('contenedor');
-        if (go2) go && go('visual');
+        clearDraft && clearDraft();
+        if (fromCompraId) go && go('compras');
+        else if (go2) go && go('visual');
       }
     } catch (e) {
       setError(e.message);
@@ -185,6 +200,35 @@ export default function ManageView({ go, editComp, clearEdit }) {
           <div style={{ gridColumn: '1/-1' }}>
             <label style={lbl}>Notas</label>
             <input value={form.notas} onChange={set('notas')} placeholder="Encapsulado, tolerancia, observaciones…" style={input} />
+          </div>
+
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Datasheet (URL)</label>
+            <input type="url" value={form.datasheet} onChange={set('datasheet')} placeholder="https://…" style={input} />
+          </div>
+
+          {/* proyectos (rubro) — un componente puede pertenecer a varios */}
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Proyectos</label>
+            {proyectos.length === 0 ? (
+              <p style={{ fontSize: 12, color: '#94A3B8', margin: 0 }}>
+                Aún no hay proyectos. Créalos en la pestaña <strong>Proyectos</strong>.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {proyectos.map((p) => {
+                  const on = Array.isArray(form.proyectos) && form.proyectos.includes(p.id);
+                  return (
+                    <button key={p.id} type="button" onClick={() => toggleProyecto(p.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 20, cursor: 'pointer', fontFamily: T.font, fontSize: 12, fontWeight: 600,
+                        border: `1px solid ${on ? (p.color || T.primary) : T.border}`, background: on ? (p.color || T.primary) + '1a' : '#fff', color: on ? (p.color || T.primary) : '#64748B' }}>
+                      <span style={{ width: 9, height: 9, borderRadius: 3, background: p.color || '#64748B' }} />
+                      {p.nombre}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* equipo prestable (no consumible) */}

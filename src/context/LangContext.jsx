@@ -23,6 +23,7 @@ const DICT = {
     'nav.admin': 'Panel administrador', 'nav.croquis': 'Croquis', 'nav.labstats': '📊 Estadísticas',
     'nav.menu': 'Menú', 'nav.toMenu': 'Ir al menú principal',
     'nav.loans': 'Préstamos', 'nav.audit': 'Auditoría', 'nav.virtualLab': '🎮 Lab virtual',
+    'nav.purchases': 'Compras', 'nav.projects': 'Proyectos',
 
     'menu.subtitle': 'Selecciona un módulo para empezar.',
     'menu.inventory': 'Inventario', 'menu.inventoryDesc': 'Componentes, vista física y estadísticas del almacén.',
@@ -89,6 +90,7 @@ const DICT = {
     'nav.admin': 'Admin panel', 'nav.croquis': 'Floor plan', 'nav.labstats': '📊 Statistics',
     'nav.menu': 'Menu', 'nav.toMenu': 'Go to main menu',
     'nav.loans': 'Loans', 'nav.audit': 'Audit log', 'nav.virtualLab': '🎮 Virtual lab',
+    'nav.purchases': 'Purchases', 'nav.projects': 'Projects',
 
     'menu.subtitle': 'Pick a module to start.',
     'menu.inventory': 'Inventory', 'menu.inventoryDesc': 'Components, physical view and warehouse stats.',
