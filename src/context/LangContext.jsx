@@ -22,7 +22,7 @@ const DICT = {
     'nav.stats': 'Estadísticas', 'nav.addComp': '+ Agregar componente', 'nav.account': 'Mi cuenta',
     'nav.admin': 'Panel administrador', 'nav.croquis': 'Croquis', 'nav.labstats': '📊 Estadísticas',
     'nav.menu': 'Menú', 'nav.toMenu': 'Ir al menú principal',
-    'nav.loans': 'Préstamos', 'nav.audit': 'Auditoría', 'nav.virtualLab': '🎮 Lab virtual',
+    'nav.audit': 'Auditoría', 'nav.virtualLab': '🎮 Lab virtual',
     'nav.purchases': 'Compras', 'nav.projects': 'Proyectos',
 
     'menu.subtitle': 'Selecciona un módulo para empezar.',
@@ -32,10 +32,11 @@ const DICT = {
     'menu.farmStat': 'Enlace por configurar',
     'menu.game': 'El laboratorio: EL JUEGO', 'menu.gameDesc': 'Explora el lab con tu avatar, gana monedas, personaliza y responde el quiz. Requiere cuenta y computadora.', 'menu.gameStat': '🎮 Requiere cuenta',
     'menu.comps': '{n} componentes', 'menu.occ': '{a}/{b} ocupados · {n} dentro',
+    'menu.purchases': 'Compras', 'menu.purchasesDesc': 'Lista de compras, pedidos y recepción de material para el inventario.', 'menu.purchasesStat': '{n} por pedir',
     'menu.admin': 'Panel administrativo', 'menu.adminDesc': 'Acceso al inventario, auditoría, tipos de componente y respaldo del sistema.', 'menu.adminStat': '🛡️ Solo administradores',
 
     'admin.title': 'Panel administrativo', 'admin.tabUsers': 'Usuarios y registro', 'admin.tabAudit': 'Auditoría',
-    'admin.tabTypes': 'Tipos de componente', 'admin.tabBackup': 'Respaldo',
+    'admin.tabTypes': 'Tipos de componente', 'admin.tabCreations': 'Creaciones', 'admin.tabBackup': 'Respaldo',
 
     'account.avatar': 'Mi avatar', 'account.avatarHint': 'Personaliza cómo te ven en el laboratorio virtual. Se guarda en tu perfil.',
     'account.body': 'Cuerpo y rostro', 'account.equipOwned': 'Equipar (lo que ya tienes)', 'account.getMore': 'Consigue más en el OXXO del juego.',
@@ -66,13 +67,6 @@ const DICT = {
     'game.question': 'Pregunta', 'game.markCorrect': 'Marcar como correcta', 'game.option': 'Opción', 'game.reward': 'Premio',
     'game.published': '¡Publicada!', 'game.publish': 'Publicar pregunta', 'game.quizRules': 'No puedes responder tu propia pregunta. La recompensa solo se da una vez.',
 
-    'loan.title': 'Préstamos', 'loan.consumable': 'Consumible', 'loan.loanable': 'Prestable',
-    'loan.available': 'Disponible', 'loan.lent': 'Prestado', 'loan.overdue': 'Retrasado',
-    'loan.lend': 'Prestar', 'loan.return': 'Devolver', 'loan.lentTo': 'Prestado a',
-    'loan.due': 'Devolver antes de', 'loan.history': 'Historial de préstamos',
-    'loan.equipment': 'Equipo prestable', 'loan.consumables': 'Consumibles',
-    'loan.markLoanable': 'Es equipo prestable (no consumible)',
-
     'audit.title': 'Auditoría', 'audit.who': 'Quién', 'audit.action': 'Acción',
     'audit.detail': 'Detalle', 'audit.when': 'Cuándo', 'audit.empty': 'Sin registros todavía.',
     'audit.where': 'Dónde', 'audit.recent': 'Recientes (7 d)',
@@ -89,7 +83,7 @@ const DICT = {
     'nav.stats': 'Statistics', 'nav.addComp': '+ Add component', 'nav.account': 'My account',
     'nav.admin': 'Admin panel', 'nav.croquis': 'Floor plan', 'nav.labstats': '📊 Statistics',
     'nav.menu': 'Menu', 'nav.toMenu': 'Go to main menu',
-    'nav.loans': 'Loans', 'nav.audit': 'Audit log', 'nav.virtualLab': '🎮 Virtual lab',
+    'nav.audit': 'Audit log', 'nav.virtualLab': '🎮 Virtual lab',
     'nav.purchases': 'Purchases', 'nav.projects': 'Projects',
 
     'menu.subtitle': 'Pick a module to start.',
@@ -99,10 +93,11 @@ const DICT = {
     'menu.farmStat': 'Link to configure',
     'menu.game': 'The Lab: THE GAME', 'menu.gameDesc': 'Explore the lab with your avatar, earn coins, customize and take the quiz. Requires an account and a computer.', 'menu.gameStat': '🎮 Account required',
     'menu.comps': '{n} components', 'menu.occ': '{a}/{b} occupied · {n} inside',
+    'menu.purchases': 'Purchases', 'menu.purchasesDesc': 'Shopping list, orders and receiving of material for the inventory.', 'menu.purchasesStat': '{n} to order',
     'menu.admin': 'Admin panel', 'menu.adminDesc': 'Inventory access, audit log, component types and system backup.', 'menu.adminStat': '🛡️ Admins only',
 
     'admin.title': 'Admin panel', 'admin.tabUsers': 'Users & log', 'admin.tabAudit': 'Audit log',
-    'admin.tabTypes': 'Component types', 'admin.tabBackup': 'Backup',
+    'admin.tabTypes': 'Component types', 'admin.tabCreations': 'Creations', 'admin.tabBackup': 'Backup',
 
     'account.avatar': 'My avatar', 'account.avatarHint': 'Customize how others see you in the virtual lab. Saved to your profile.',
     'account.body': 'Body & face', 'account.equipOwned': 'Equip (what you own)', 'account.getMore': 'Get more at the in-game OXXO.',
@@ -133,12 +128,6 @@ const DICT = {
     'game.question': 'Question', 'game.markCorrect': 'Mark as correct', 'game.option': 'Option', 'game.reward': 'Reward',
     'game.published': 'Published!', 'game.publish': 'Publish question', 'game.quizRules': 'You cannot answer your own question. Reward is granted once.',
 
-    'loan.title': 'Loans', 'loan.consumable': 'Consumable', 'loan.loanable': 'Loanable',
-    'loan.available': 'Available', 'loan.lent': 'On loan', 'loan.overdue': 'Overdue',
-    'loan.lend': 'Lend', 'loan.return': 'Return', 'loan.lentTo': 'Lent to',
-    'loan.due': 'Return before', 'loan.history': 'Loan history',
-    'loan.equipment': 'Loanable equipment', 'loan.consumables': 'Consumables',
-    'loan.markLoanable': 'This is loanable equipment (not consumable)',
 
     'audit.title': 'Audit log', 'audit.who': 'Who', 'audit.action': 'Action',
     'audit.detail': 'Detail', 'audit.when': 'When', 'audit.empty': 'No records yet.',

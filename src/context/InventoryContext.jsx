@@ -25,7 +25,6 @@ export function InventoryProvider({ children }) {
   const [customBoxes, setCustomBoxes] = useState([]);
   const [customTypes, setCustomTypes] = useState([]);
   const [contMesa, setContMesa] = useState({}); // { contenedorId: mesaId }
-  const [prestamos, setPrestamos] = useState([]);
   const [auditoria, setAuditoria] = useState([]);
   const [proyectos, setProyectos] = useState([]);
   const [compras, setCompras] = useState([]);
@@ -33,12 +32,11 @@ export function InventoryProvider({ children }) {
 
   useEffect(() => {
     (async () => {
-      const [c, u, ch, tp, pr, au, prj, cmp] = await Promise.all([
+      const [c, u, ch, tp, au, prj, cmp] = await Promise.all([
         Inv.fetchComponents(),
         Inv.fetchUsage(),
         Inv.fetchChangelog(),
         Inv.fetchTipos(),
-        Inv.fetchPrestamos(),
         Inv.fetchAuditoria(),
         Inv.fetchProyectos(),
         Inv.fetchCompras(),
@@ -47,7 +45,6 @@ export function InventoryProvider({ children }) {
       setUsage(u || []);
       setChangelog(ch || []);
       setCustomTypes(Array.isArray(tp) ? tp : []);
-      setPrestamos(Array.isArray(pr) ? pr : []);
       setAuditoria(Array.isArray(au) ? au : []);
       setProyectos(Array.isArray(prj) ? prj : []);
       setCompras(Array.isArray(cmp) ? cmp : []);
@@ -122,32 +119,6 @@ export function InventoryProvider({ children }) {
     setUsage((prev) => [{ ...tx, email: session?.email, usuario: session?.nombre, ts: new Date().toISOString() }, ...prev]);
     audit({ modulo: 'inventario', accion: 'usar', objeto: c.codigoInterno, detalle: `${qty} × ${c.descripcion}` });
   }, [comps, session, audit]);
-
-  // ---------- préstamos (equipo no consumible) ----------
-  const lend = useCallback(async (id, { email, nombre, devolverAntes }) => {
-    const c = comps.find((x) => x.id === id);
-    if (!c) return;
-    const { patch, reg } = await Inv.lendComponent(c, { email, nombre, devolverAntes }, session);
-    setComps((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    setPrestamos((prev) => [reg, ...prev]);
-    audit({ modulo: 'prestamo', accion: 'prestar', objeto: c.codigoInterno, detalle: `${c.descripcion} → ${nombre}` });
-  }, [comps, session, audit]);
-
-  const returnLoan = useCallback(async (id) => {
-    const c = comps.find((x) => x.id === id);
-    if (!c) return;
-    const { patch, prestamoId, hasta } = await Inv.returnComponent(c, prestamos, session);
-    setComps((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    if (prestamoId) setPrestamos((prev) => prev.map((p) => (p.id === prestamoId ? { ...p, hasta, estado: 'devuelto' } : p)));
-    audit({ modulo: 'prestamo', accion: 'devolver', objeto: c.codigoInterno, detalle: c.descripcion });
-  }, [comps, prestamos, session, audit]);
-
-  // Estado de un componente prestable: 'disponible' | 'prestado' | 'retrasado'.
-  const loanState = useCallback((c) => {
-    if (!c.prestado_a) return 'disponible';
-    if (c.devolver_antes && new Date(c.devolver_antes) < new Date()) return 'retrasado';
-    return 'prestado';
-  }, []);
 
   // Crear caja personalizada (compartida en Supabase).
   const addCustomBox = useCallback(async (data) => {
@@ -310,7 +281,7 @@ export function InventoryProvider({ children }) {
   }, []);
 
   const value = { comps, usage, changelog, loading, customBoxes, customTypes, tipos, tcMap, add, edit, remove, use, addCustomBox, removeCustomBox, addTipo, removeTipo, importMany,
-    prestamos, auditoria, audit, lend, returnLoan, loanState,
+    auditoria, audit,
     proyectos, proyectoById, addProyecto, editProyecto, removeProyecto,
     compras, addCompra, updateCompra, removeCompra, marcarPedido, registrarRecepcion, archivarCompra,
     allContainers, containerById, esSuelto, generalLocOf, containersInMesa, looseInMesa, contMesa, setContenedorMesa };

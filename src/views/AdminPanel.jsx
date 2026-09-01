@@ -17,6 +17,7 @@ import { TYPELBL, TYPECLR, rgba, fmtDate } from '../lib/constants.js';
 import { T, card } from '../theme.js';
 import AuditView from './AuditView.jsx';
 import TypesManager from '../components/TypesManager.jsx';
+import ProjectsManager from '../components/ProjectsManager.jsx';
 import ExportImport from '../components/ExportImport.jsx';
 
 export default function AdminPanel() {
@@ -26,7 +27,7 @@ export default function AdminPanel() {
   const tabs = [
     { id: 'users', label: t('admin.tabUsers') },
     { id: 'audit', label: t('admin.tabAudit') },
-    { id: 'types', label: t('admin.tabTypes') },
+    { id: 'creations', label: t('admin.tabCreations') },
     { id: 'backup', label: t('admin.tabBackup') },
   ];
 
@@ -54,7 +55,12 @@ export default function AdminPanel() {
 
       {tab === 'users' && <UsersTab />}
       {tab === 'audit' && <AuditView />}
-      {tab === 'types' && <TypesManager />}
+      {tab === 'creations' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <ProjectsManager />
+          <TypesManager />
+        </div>
+      )}
       {tab === 'backup' && <ExportImport />}
     </div>
   );

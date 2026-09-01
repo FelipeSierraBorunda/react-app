@@ -16,7 +16,7 @@ export default function Nav({ view, setView, onAuth }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Las pestañas de inventario solo se muestran dentro del módulo de inventario.
-  const inventoryViews = ['visual', 'table', 'stats', 'prestamos', 'auditoria', 'manage', 'compras', 'proyectos'];
+  const inventoryViews = ['visual', 'table', 'stats', 'auditoria', 'manage', 'proyectos'];
   const inInventory = inventoryViews.includes(view);
   const inCroquis = ['croquis', 'labstats'].includes(view);
 
@@ -25,9 +25,7 @@ export default function Nav({ view, setView, onAuth }) {
     tabs.push(
       { id: 'visual', label: t('nav.physical') },
       { id: 'table', label: t('nav.inventory') },
-      { id: 'compras', label: t('nav.purchases') },
       { id: 'proyectos', label: t('nav.projects') },
-      { id: 'prestamos', label: t('nav.loans') },
       { id: 'stats', label: t('nav.stats') },
       { id: 'manage', label: t('nav.addComp') },
     );

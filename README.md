@@ -55,6 +55,8 @@ salvo `schema.sql`, que tiene `DROP TABLE` al inicio):
 - `mejoras4-schema.sql` — cajas/contenedores personalizados compartidos (`contenedores`).
 - `mejoras5-schema.sql` — proyectos (`proyectos` + `componentes.proyectos`),
   planificador de compras (`compras`) y `componentes.datasheet`.
+- `mejoras6-schema.sql` — **destructivo**: elimina el módulo de préstamos
+  (tabla `prestamos` + columnas `prestable/prestado_*/devolver_antes`).
 - `auth-schema.sql` — **autenticación** (Supabase Auth + tabla `perfiles`).
 
 ### Autenticación (desde 2026-08)

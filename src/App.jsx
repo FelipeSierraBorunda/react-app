@@ -22,10 +22,9 @@ import MenuView from './views/MenuView.jsx';
 import CroquisView from './views/CroquisView.jsx';
 import LabStatsView from './views/LabStatsView.jsx';
 import GameView from './views/GameView.jsx';
-import PrestamosView from './views/PrestamosView.jsx';
 import AuditView from './views/AuditView.jsx';
 import ComprasView from './views/ComprasView.jsx';
-import ProjectsManager from './components/ProjectsManager.jsx';
+import ProyectosView from './views/ProyectosView.jsx';
 
 export default function App() {
   const { ready, loggedIn, invAccess, isAdmin, recovery } = useAuth();
@@ -75,10 +74,9 @@ export default function App() {
     visual: invGate(<VisualView go={setView} goEdit={goEdit} requireAuth={requireAuth} />),
     table: invGate(<TableView go={setView} goEdit={goEdit} requireAuth={requireAuth} />),
     stats: invGate(<StatsView />),
-    prestamos: invGate(<PrestamosView go={setView} />),
     auditoria: invGate(<AuditView />),
     compras: invGate(<ComprasView go={setView} goAddDraft={goAddDraft} />),
-    proyectos: invGate(<ProjectsManager />),
+    proyectos: invGate(<ProyectosView go={setView} />),
     manage: invGate(<ManageView go={setView} editComp={editComp} clearEdit={() => setEditComp(null)} draft={addDraft} clearDraft={() => setAddDraft(null)} />),
     account: loggedIn ? <AccountView go={setView} /> : <Center>Debes iniciar sesión</Center>,
     admin: (loggedIn && isAdmin) ? <AdminPanel /> : <Center>Acceso denegado</Center>,

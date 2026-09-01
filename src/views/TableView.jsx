@@ -16,7 +16,7 @@ import { T, card } from '../theme.js';
 import ComponentDetailModal from '../components/ComponentDetailModal.jsx';
 
 export default function TableView({ go, goEdit, requireAuth }) {
-  const { comps, use, remove, edit, tipos, tcMap, generalLocOf, esSuelto, changelog, auditoria, proyectos } = useInventory();
+  const { comps, use, remove, edit, tipos, tcMap, generalLocOf, esSuelto, changelog, auditoria, proyectos, proyectoById } = useInventory();
   const { loggedIn } = useAuth();
   const { mesas } = useLab();
   const mesaNombre = (id) => { const m = mesas.find((x) => x.id === id); return m ? m.nombre : null; };
@@ -117,6 +117,7 @@ export default function TableView({ go, goEdit, requireAuth }) {
                   <Th key={col} onClick={() => sortBy(col)}>{label}{caret(col)}</Th>
                 ))}
                 <Th>MESA/MÓDULO</Th>
+                <Th>PROYECTO</Th>
                 <Th>ACCIONES</Th>
               </tr>
             </thead>
@@ -130,6 +131,19 @@ export default function TableView({ go, goEdit, requireAuth }) {
                   <Td>{esSuelto(c) ? <span style={{ color: T.muted }}>Suelto</span> : c.contenedor}</Td>
                   <Td>{mesaNombre(generalLocOf(c)) || <span style={{ color: '#CBD5E1' }}>—</span>}</Td>
                   <Td>
+                    {(Array.isArray(c.proyectos) && c.proyectos.length > 0)
+                      ? (
+                        <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {c.proyectos.map((id) => {
+                            const p = proyectoById(id);
+                            if (!p) return null;
+                            return <Chip key={id} color={p.color}>{p.nombre}</Chip>;
+                          })}
+                        </span>
+                      )
+                      : <span style={{ color: '#CBD5E1' }}>—</span>}
+                  </Td>
+                  <Td>
                     {loggedIn && (
                       <button onClick={() => setDetail(c)} style={miniBtn}>Ver</button>
                     )}
@@ -137,7 +151,7 @@ export default function TableView({ go, goEdit, requireAuth }) {
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><Td colSpan={7}><div style={{ textAlign: 'center', color: T.muted, padding: 28 }}>Sin resultados</div></Td></tr>
+                <tr><Td colSpan={8}><div style={{ textAlign: 'center', color: T.muted, padding: 28 }}>Sin resultados</div></Td></tr>
               )}
             </tbody>
           </table>

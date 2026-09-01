@@ -13,10 +13,12 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { T } from '../theme.js';
 
 export default function MenuView({ go }) {
-  const { comps } = useInventory();
+  const { comps, compras } = useInventory();
   const { ocupadas, totalSillas, presentes, ensureLoaded } = useLab();
   const { t } = useLang();
   const { isAdmin } = useAuth();
+
+  const porPedir = (compras || []).filter((c) => c.estado === 'lista').length;
 
   useEffect(() => { ensureLoaded(); }, [ensureLoaded]);
 
@@ -27,6 +29,14 @@ export default function MenuView({ go }) {
       stat: t('menu.comps', { n: comps.length }),
       icon: (
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg>
+      ),
+    },
+    {
+      id: 'compras', view: 'compras', accent: '#059669', soft: '#ECFDF5',
+      title: t('menu.purchases'), desc: t('menu.purchasesDesc'),
+      stat: t('menu.purchasesStat', { n: porPedir }),
+      icon: (
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M3 4h2l2.4 12.2a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L23 8H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="21" r="1.4" fill="currentColor"/><circle cx="18" cy="21" r="1.4" fill="currentColor"/></svg>
       ),
     },
     {
